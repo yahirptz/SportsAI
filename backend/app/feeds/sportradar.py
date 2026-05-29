@@ -159,14 +159,23 @@ class SportRadarStats:
         return games
 
 
-def _team_ids(game: dict) -> tuple[str, str]:
+def _team_ids(game: dict, sport: Sport) -> tuple[str, str]:
+    # MLB schedule uses home_team/away_team string ids; NBA uses home/away dicts.
+    if sport is Sport.MLB:
+        return game.get("home_team", ""), game.get("away_team", "")
     return game.get("home", {}).get("id", ""), game.get("away", {}).get("id", "")
 
 
-def _player_lines(summary: dict, team_id: str) -> list[dict]:
+def _player_name(p: dict) -> str:
+    return p.get("full_name") or f"{p.get('preferred_name', '')} {p.get('last_name', '')}".strip()
+
+
+def _player_lines(summary: dict, team_id: str, sport: Sport) -> list[dict]:
+    # MLB nests teams under a top-level "game" key; NBA keeps them at the root.
+    root = summary.get("game", summary) if sport is Sport.MLB else summary
     for side in ("home", "away"):
-        if summary.get(side, {}).get("id") == team_id:
-            return summary[side].get("players", [])
+        if root.get(side, {}).get("id") == team_id:
+            return root[side].get("players", [])
     return []
 
 
@@ -205,7 +214,7 @@ class SportRadarFeedProvider:
         window = client.recent_games(settings.sportradar_lookback_days)
         rows, seen = [], set()
         for game in self._target_games(window):
-            for team_id in _team_ids(game):
+            for team_id in _team_ids(game, sport):
                 if not team_id:
                     continue
                 for rec in self._team_last_n_logs(sport, client, window, team_id, config.sample_window).values():
@@ -234,17 +243,17 @@ class SportRadarFeedProvider:
     ) -> dict[str, dict]:
         extractors = EXTRACTORS.get(sport, {})
         team_games = [
-            g for g in window if g.get("status") == "closed" and team_id in _team_ids(g)
+            g for g in window if g.get("status") == "closed" and team_id in _team_ids(g, sport)
         ]
         team_games.sort(key=lambda g: g["_date"], reverse=True)
         players: dict[str, dict] = {}
         for game in team_games[:n]:
             summary = client.summary(game["id"])
-            for p in _player_lines(summary, team_id):
+            for p in _player_lines(summary, team_id, sport):
                 pid = p.get("id")
                 if not pid:
                     continue
-                rec = players.setdefault(pid, {"name": p.get("full_name", ""), "stats": {}})
+                rec = players.setdefault(pid, {"name": _player_name(p), "stats": {}})
                 for stat_key, extract in extractors.items():
                     rec["stats"].setdefault(stat_key, []).append(extract(p))
         return players
@@ -255,7 +264,7 @@ class SportRadarFeedProvider:
         window = client.recent_games(settings.sportradar_lookback_days)
         props: list[PropInput] = []
         for game in self._target_games(window):
-            for team_id in _team_ids(game):
+            for team_id in _team_ids(game, sport):
                 if not team_id:
                     continue
                 logs_by_player = self._team_last_n_logs(

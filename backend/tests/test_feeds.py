@@ -42,5 +42,6 @@ def test_sportradar_requires_api_key(monkeypatch):
     from app.feeds.sportradar import build_sportradar_provider
 
     monkeypatch.setattr(settings, "sportradar_api_key", None)
+    monkeypatch.setattr(settings, "sportradar_mlb_api_key", None)
     with pytest.raises(FeedError):
         build_sportradar_provider()
