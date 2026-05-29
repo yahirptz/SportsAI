@@ -1,0 +1,38 @@
+# EdgeIQ local infrastructure (SRS §03 Stream Processing / §06 Data Layer).
+# Brings up the data stores the backend talks to. Kafka, Celery workers, and
+# the Next.js frontend are added as those layers come online.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: edgeiq-postgres
+    environment:
+      POSTGRES_USER: edgeiq
+      POSTGRES_PASSWORD: edgeiq
+      POSTGRES_DB: edgeiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: edgeiq-timescale
+    environment:
+      POSTGRES_USER: edgeiq
+      POSTGRES_PASSWORD: edgeiq
+      POSTGRES_DB: edgeiq_ts
+    ports:
+      - "5433:5432"
+    volumes:
+      - tsdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: edgeiq-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
+  tsdata:
