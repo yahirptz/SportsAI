@@ -18,3 +18,10 @@ class SampleFeedProvider:
 
     def slate(self, sport: Sport) -> list[PropInput]:
         return self._breaker.call(lambda: list(SAMPLE_PROPS.get(sport, [])))
+
+    def candidates(self, sport: Sport) -> list[dict]:
+        return [
+            {"player": p.player_name, "market": p.stat_key, "market_label": p.stat_key,
+             "floor_hint": min((g.value for g in p.logs), default=0)}
+            for p in SAMPLE_PROPS.get(sport, [])
+        ]

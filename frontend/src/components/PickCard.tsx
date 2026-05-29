@@ -54,12 +54,22 @@ export default function PickCard({ pick }: { pick: Pick }) {
             public {e.public_bet_pct}%
           </span>
         )}
-        {!e.injury_flag && (
-          <span className="rounded border border-border bg-surface-2 px-1.5 py-0.5 text-muted">
-            injury check ✓
-          </span>
-        )}
+        <span className="rounded border border-border bg-surface-2 px-1.5 py-0.5 text-muted">
+          injury check ✓
+        </span>
       </div>
+
+      {pick.enrichment.perplexity_summary && (
+        <div className="mt-2 text-[10px] text-muted">
+          📰 {pick.enrichment.perplexity_summary}
+        </div>
+      )}
+
+      {pick.reasoning && (
+        <div className="mt-2 border-l-2 border-accent/40 pl-2 text-xs italic text-foreground/80">
+          {pick.reasoning}
+        </div>
+      )}
     </div>
   );
 }

@@ -53,6 +53,13 @@ class StaticOddsBook:
     def __len__(self) -> int:
         return len(self._lines)
 
+    def as_rows(self) -> list[dict]:
+        """Flatten to rows for the API (sport, player, market, line, odds)."""
+        return [
+            {"sport": sport, "player": player, "market": market, "line": line, "odds": odds}
+            for (sport, player, market), (line, odds) in sorted(self._lines.items())
+        ]
+
     @classmethod
     def from_json(cls, path: str | Path) -> "StaticOddsBook":
         """Load lines from a JSON file.
@@ -71,3 +78,14 @@ class StaticOddsBook:
                 for market, (line, odds) in markets.items():
                     book.set_line(sport, player, market, float(line), int(odds))
         return book
+
+
+def upsert_line_file(
+    path: str | Path, sport: str, player: str, market: str, line: float, odds: int
+) -> None:
+    """Add or update one line in the lines.json file, preserving other entries."""
+    path = Path(path)
+    data = json.loads(path.read_text()) if path.exists() else {}
+    data.setdefault(sport, {}).setdefault(player, {})[market] = [line, odds]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2))

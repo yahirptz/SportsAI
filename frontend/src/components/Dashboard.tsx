@@ -5,6 +5,7 @@ import { api, type FeedHealth, type Parlay, type Pick, type SportInfo } from "@/
 import PickCard from "./PickCard";
 import ParlayPanel from "./ParlayPanel";
 import ModelHealth from "./ModelHealth";
+import OddsPanel from "./OddsPanel";
 
 export default function Dashboard() {
   const [sports, setSports] = useState<SportInfo[]>([]);
@@ -13,6 +14,7 @@ export default function Dashboard() {
   const [parlay, setParlay] = useState<Parlay | null>(null);
   const [health, setHealth] = useState<FeedHealth | null>(null);
   const [bankroll, setBankroll] = useState<number | null>(null);
+  const [enriched, setEnriched] = useState(false);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +29,7 @@ export default function Dashboard() {
     try {
       const [p, h] = await Promise.all([api.picks(s), api.feedHealth()]);
       setPicks(p.picks);
+      setEnriched(p.enriched);
       setHealth(h);
     } catch (e) {
       setError(String(e));
@@ -106,7 +109,14 @@ export default function Dashboard() {
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">
               Agent Feed
             </h2>
-            <span className="text-xs text-muted">{picks.length} eligible</span>
+            <div className="flex items-center gap-2">
+              {enriched && (
+                <span className="rounded border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
+                  enriched
+                </span>
+              )}
+              <span className="text-xs text-muted">{picks.length} eligible</span>
+            </div>
           </div>
           {picks.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted">
@@ -124,6 +134,7 @@ export default function Dashboard() {
         {/* Right rail */}
         <aside className="space-y-5">
           <ParlayPanel parlay={parlay} loading={building} onBuild={build} />
+          <OddsPanel sport={sport} onPriced={() => loadSport(sport)} />
           <ModelHealth health={health} />
         </aside>
       </div>

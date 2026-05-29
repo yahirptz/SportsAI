@@ -9,6 +9,8 @@ rather than fabricating data.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Body, HTTPException
 
 from app.config import settings
@@ -154,3 +156,51 @@ def shadow_status():
 def feed_health():
     """Powers the Model Health view (SRS §07) from the feed_health registry."""
     return {"active_provider": get_provider().name, "feeds": HEALTH_REGISTRY.snapshot()}
+
+
+# --- Odds workflow (operator-supplied lines bridge, SRS §01) ----------------
+
+
+@router.get("/odds/lines", summary="List all operator-supplied lines")
+def list_lines():
+    from app.feeds.odds import StaticOddsBook
+
+    path = Path(settings.odds_lines_path)
+    rows = StaticOddsBook.from_json(path).as_rows() if path.exists() else []
+    return {"path": str(path), "count": len(rows), "lines": rows}
+
+
+@router.post("/odds/lines", summary="Add or update a line (persists to lines.json)")
+def upsert_line(
+    sport: str = Body(...),
+    player: str = Body(...),
+    market: str = Body(...),
+    line: float = Body(...),
+    odds: int = Body(default=-110),
+):
+    from app.feeds.odds import upsert_line_file
+
+    s = _resolve_sport(sport)
+    if SPORTS[s].stat(market) is None:
+        raise HTTPException(status_code=400, detail=f"Unknown market {market!r} for {s.value}.")
+    upsert_line_file(settings.odds_lines_path, s.value, player, market, line, odds)
+    return {"ok": True, "sport": s.value, "player": player, "market": market, "line": line, "odds": odds}
+
+
+@router.get("/odds/unpriced/{sport}", summary="Slate markets that still need a line")
+def unpriced(sport: str):
+    """Players/markets on the current slate with full samples but no line yet."""
+    from app.feeds.odds import StaticOddsBook
+
+    s = _resolve_sport(sport)
+    provider = get_provider()
+    if not hasattr(provider, "candidates"):
+        return {"sport": s.value, "unpriced": [], "note": "Provider exposes no candidates."}
+
+    path = Path(settings.odds_lines_path)
+    book = StaticOddsBook.from_json(path) if path.exists() else StaticOddsBook()
+    missing = [
+        c for c in provider.candidates(s)
+        if book.line_for(s.value, c["player"], c["market"]) is None
+    ]
+    return {"sport": s.value, "count": len(missing), "unpriced": missing}

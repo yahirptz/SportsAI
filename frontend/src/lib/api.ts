@@ -29,6 +29,7 @@ export interface Pick {
   odds: number | null;
   status: string;
   enrichment: Enrichment;
+  reasoning: string | null;
 }
 
 export interface ParlayLeg {
@@ -38,6 +39,14 @@ export interface ParlayLeg {
   floor: number;
   line: number;
   confidence: number;
+  reasoning: string | null;
+}
+
+export interface UnpricedMarket {
+  player: string;
+  market: string;
+  market_label: string;
+  floor_hint: number;
 }
 
 export interface Parlay {
@@ -89,7 +98,18 @@ async function getJSON<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   sports: () => getJSON<SportInfo[]>("/api/sports"),
   picks: (sport: string) =>
-    getJSON<{ sport: string; count: number; picks: Pick[] }>(`/api/picks/${sport}`),
+    getJSON<{ sport: string; count: number; enriched: boolean; picks: Pick[] }>(
+      `/api/picks/${sport}`,
+    ),
+  unpriced: (sport: string) =>
+    getJSON<{ sport: string; count: number; unpriced: UnpricedMarket[] }>(
+      `/api/odds/unpriced/${sport}`,
+    ),
+  addLine: (sport: string, player: string, market: string, line: number, odds: number) =>
+    getJSON<{ ok: boolean }>("/api/odds/lines", {
+      method: "POST",
+      body: JSON.stringify({ sport, player, market, line, odds }),
+    }),
   buildParlay: (sport: string, gameId?: string) =>
     getJSON<Parlay>("/api/parlay/build", {
       method: "POST",

@@ -128,6 +128,40 @@ class SportRadarFeedProvider:
             return []  # this adapter currently covers NBA
         return self._breaker.call(lambda: self._build_slate(sport))
 
+    def candidates(self, sport: Sport) -> list[dict]:
+        """All (player, market) pairs on the target slate with full samples.
+
+        Used by the odds workflow to surface which markets still need a line.
+        Independent of pricing (unlike :meth:`slate`).
+        """
+        if sport is not Sport.NBA:
+            return []
+        config = get_config(sport)
+        bettable = [s.key for s in config.stats if not s.ceiling_prop]
+        window = self._stats.recent_games(settings.sportradar_lookback_days)
+        rows: list[dict] = []
+        seen: set[tuple[str, str]] = set()
+        for game in self._target_games(window):
+            for team_id in _team_ids(game):
+                if not team_id:
+                    continue
+                logs = self._team_last_n_logs(window, team_id, config.sample_window)
+                for rec in logs.values():
+                    name = rec["name"]
+                    for stat_key in bettable:
+                        vals = rec["stats"].get(stat_key, [])
+                        if len(vals) < config.sample_window or (name, stat_key) in seen:
+                            continue
+                        seen.add((name, stat_key))
+                        spec = config.stat(stat_key)
+                        rows.append({
+                            "player": name,
+                            "market": stat_key,
+                            "market_label": spec.label if spec else stat_key,
+                            "floor_hint": min(vals),
+                        })
+        return rows
+
     def _target_games(self, window: list[dict]) -> list[dict]:
         """Prefer today's scheduled games; else the most recent completed game."""
         today = str(date.today())
