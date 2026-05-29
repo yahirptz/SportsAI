@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Runtime settings, sourced from environment variables / .env."""
 
-    model_config = SettingsConfigDict(env_prefix="EDGEIQ_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="EDGEIQ_", env_file=".env", extra="ignore", populate_by_name=True
+    )
 
     app_name: str = "EdgeIQ"
     version: str = "1.0.0"
@@ -31,8 +34,25 @@ class Settings(BaseSettings):
     sportradar_lookback_days: int = 30  # bound the game-log walk-back.
     odds_lines_path: str = "data/lines.json"  # operator-supplied lines bridge.
 
-    # External services (placeholders — wired in later phases).
+    # Context enrichment (SRS §02 Layer 2). Off by default so the base pipeline
+    # stays fast and free; turn on to run Perplexity/Reddit/Claude per slate.
+    enrichment_enabled: bool = False
+    enrichment_cache_ttl: int = 6 * 3600  # injuries/news change intraday → 6h TTL.
+    reasoning_max_legs: int = 8  # cap Claude reasoning calls per build (cost guard).
+    reddit_sentiment_enabled: bool = True  # uses free public JSON; best-effort.
+
+    # AI provider keys. Read by their conventional unprefixed env names so the
+    # Anthropic SDK and Perplexity share one source of truth.
+    anthropic_api_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("ANTHROPIC_API_KEY", "EDGEIQ_ANTHROPIC_API_KEY")
+    )
+    perplexity_api_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("PERPLEXITY_API_KEY", "EDGEIQ_PERPLEXITY_API_KEY")
+    )
     claude_model: str = "claude-sonnet-4-20250514"
+    perplexity_model: str = "sonar"
+
+    # Persistence (placeholders — wired in later phases).
     database_url: str = "postgresql://edgeiq:edgeiq@localhost:5432/edgeiq"
     timescale_url: str = "postgresql://edgeiq:edgeiq@localhost:5433/edgeiq_ts"
     redis_url: str = "redis://localhost:6379/0"

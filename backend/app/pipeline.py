@@ -34,29 +34,53 @@ class PropInput:
     enrichment: EnrichmentContext = field(default_factory=EnrichmentContext)
 
 
-def generate_picks(sport: Sport | str, props: list[PropInput], bankroll: float) -> list[Pick]:
+def generate_picks(
+    sport: Sport | str,
+    props: list[PropInput],
+    bankroll: float,
+    enrichment=None,
+) -> list[Pick]:
     """Run the agent chain over raw props and return eligible, scored picks.
 
     Ineligible props are dropped (the floor model is the gatekeeper). Eligible
-    picks carry their confidence score and Kelly stake.
+    picks carry their confidence score and Kelly stake. When an enrichment
+    service is supplied and enabled, each unique player is enriched once (cached)
+    with injury/lineup facts and sentiment BEFORE the floor model runs — so an
+    injury flag hard-stops the leg, exactly per SRS §02/§04.
     """
     config = route_sport(sport)
     picks: list[Pick] = []
+    enriched: dict[str, dict] = {}
 
     for prop in props:
+        ctx = prop.enrichment
+        if enrichment is not None and enrichment.enabled:
+            if prop.player_name not in enriched:
+                enriched[prop.player_name] = enrichment.enrich_player(
+                    prop.player_name, config.label, config.subreddits
+                )
+            e = enriched[prop.player_name]
+            ctx = ctx.model_copy(
+                update={
+                    "injury_flag": e["injury_flag"],
+                    "perplexity_summary": e["perplexity_summary"],
+                    "reddit_sentiment": e["reddit_sentiment"],
+                }
+            )
+
         stat_input = PlayerStatInput(
             player_id=prop.player_id,
             player_name=prop.player_name,
             stat_key=prop.stat_key,
             line=prop.line,
             logs=prop.logs,
-            injury_flag=prop.enrichment.injury_flag,
+            injury_flag=ctx.injury_flag,
         )
         result = evaluate_stat(stat_input, config)
         if not result.eligible or result.floor is None:
             continue
 
-        breakdown = score_confidence(result, prop.enrichment)
+        breakdown = score_confidence(result, ctx)
         stake = kelly_stake(breakdown.total, bankroll, prop.odds)
         spec = config.stat(prop.stat_key)
 
@@ -77,10 +101,25 @@ def generate_picks(sport: Sport | str, props: list[PropInput], bankroll: float) 
                 kelly_stake=stake,
                 odds=prop.odds,
                 status=PickStatus.CANDIDATE,
-                enrichment=prop.enrichment,
+                enrichment=ctx,
             )
         )
 
+    return picks
+
+
+def attach_reasoning(picks: list[Pick], enrichment, limit: int) -> list[Pick]:
+    """Generate Claude 'why this pick' summaries for the top-N picks (cost-bounded)."""
+    if enrichment is None or not enrichment.enabled:
+        return picks
+    for p in sorted(picks, key=lambda x: x.confidence, reverse=True)[:limit]:
+        facts = (
+            f"{p.player_name} — {p.market_label}. Verified floor {p.floor} clears the "
+            f"line {p.line} (gap {p.gap}). Last-N average {p.sample_average}. "
+            f"Reddit sentiment {p.enrichment.reddit_sentiment}. "
+            f"News: {p.enrichment.perplexity_summary or 'no flags'}."
+        )
+        p.reasoning = enrichment.reason(facts)
     return picks
 
 

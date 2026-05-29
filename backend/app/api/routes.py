@@ -12,10 +12,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, HTTPException
 
 from app.config import settings
+from app.enrichment import get_enrichment_service
 from app.feeds import HEALTH_REGISTRY, get_provider
 from app.grading import grade_pick
 from app.parlay.builder import build_parlay
-from app.pipeline import generate_picks
+from app.pipeline import attach_reasoning, generate_picks
 from app.sports.registry import SPORTS, Sport
 
 router = APIRouter()
@@ -58,12 +59,14 @@ def list_sports():
 @router.get("/picks/{sport}", summary="Floor-verified picks for a sport")
 def get_picks(sport: str):
     s = _resolve_sport(sport)
+    enrichment = get_enrichment_service()
     props = get_provider().slate(s)
-    picks = generate_picks(s, props, _BANKROLL["balance"])
+    picks = generate_picks(s, props, _BANKROLL["balance"], enrichment=enrichment)
+    picks.sort(key=lambda p: p.confidence, reverse=True)
+    attach_reasoning(picks, enrichment, settings.reasoning_max_legs)
     for p in picks:
         _PICK_INDEX[p.id] = p
-    picks.sort(key=lambda p: p.confidence, reverse=True)
-    return {"sport": s.value, "count": len(picks), "picks": picks}
+    return {"sport": s.value, "count": len(picks), "enriched": enrichment.enabled, "picks": picks}
 
 
 @router.post("/parlay/build", summary="Trigger the SGP builder for a game")
@@ -72,13 +75,24 @@ def build_parlay_route(
     game_id: str | None = Body(default=None),
 ):
     s = _resolve_sport(sport)
+    enrichment = get_enrichment_service()
     props = get_provider().slate(s)
     if not props:
         raise HTTPException(status_code=400, detail=f"No props available for {s.value}.")
     # Default to the busiest game on the slate if no game_id is supplied.
     game = game_id or _busiest_game(props)
-    candidates = [p for p in generate_picks(s, props, _BANKROLL["balance"]) if p.game_id == game]
-    return build_parlay(game, s, candidates, bankroll=_BANKROLL["balance"])
+    candidates = [
+        p for p in generate_picks(s, props, _BANKROLL["balance"], enrichment=enrichment)
+        if p.game_id == game
+    ]
+    parlay = build_parlay(game, s, candidates, bankroll=_BANKROLL["balance"])
+    # Decorate the chosen legs with Claude reasoning (bounded to the leg count).
+    if not parlay.no_bet and enrichment.enabled:
+        by_id = {p.id: p for p in candidates}
+        attach_reasoning([by_id[leg.pick_id] for leg in parlay.legs], enrichment, settings.parlay_legs)
+        for leg in parlay.legs:
+            leg.reasoning = by_id[leg.pick_id].reasoning
+    return parlay
 
 
 @router.get("/bankroll", summary="Read current bankroll")

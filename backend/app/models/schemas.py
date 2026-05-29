@@ -65,6 +65,7 @@ class Pick(BaseModel):
     odds: int | None = Field(default=None, description="American odds for the leg.")
     status: PickStatus = PickStatus.CANDIDATE
     enrichment: EnrichmentContext = Field(default_factory=EnrichmentContext)
+    reasoning: str | None = Field(default=None, description="Claude 'why this pick' summary.")
     created_at: datetime = Field(default_factory=_utcnow)
 
 
@@ -75,6 +76,7 @@ class ParlayLeg(BaseModel):
     floor: float
     line: float
     confidence: float
+    reasoning: str | None = None
 
 
 class Parlay(BaseModel):
