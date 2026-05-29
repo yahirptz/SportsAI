@@ -25,12 +25,14 @@ it — is implemented, tested, and runnable end to end against a sample feed.
 | Result Grader (CLV computation) | ✅ | [`app/grading.py`](backend/app/grading.py) |
 | Pipeline (Router → Floor → Score → Size → Build) | ✅ | [`app/pipeline.py`](backend/app/pipeline.py) |
 | FastAPI REST API (SRS §06 routes) | ✅ | [`app/api/routes.py`](backend/app/api/routes.py) |
-| Live feed adapters (SportRadar / OddsJam / FanDuel) | ⏳ | data provider interface in place |
+| Feed provider abstraction + circuit breaker (SRS §01) | ✅ | [`app/feeds/`](backend/app/feeds/) |
+| **SportRadar adapter** (real NBA v8 game logs) | ✅ | [`app/feeds/sportradar.py`](backend/app/feeds/sportradar.py) |
+| **Next.js dashboard** (Agent Feed, Parlay Builder, Model Health) | ✅ | [`frontend/src/`](frontend/src/) |
 | Enrichment layer (Perplexity / Reddit) | ⏳ | `EnrichmentContext` modeled; agents stubbed |
+| Odds feed (OddsJam / FanDuel lines) | ⏳ | `OddsBook` interface + `StaticOddsBook` bridge |
 | Stream processing (Kafka / TimescaleDB / Redis) | ⏳ | `docker-compose.yml` provisions stores |
 | Obsidian second brain + learning loop | ⏳ | grader writes modeled; vault adapter pending |
 | Shadow Tester | ⏳ | route returns `pending_data` |
-| Frontend (Next.js dashboard) | ⏳ | next milestone |
 
 The floor model enforces every absolute rule from SRS §04/§08 — incomplete
 samples, single-game misses, ceiling props, injury flags, lines above the
@@ -68,6 +70,32 @@ curl -X POST localhost:8000/api/parlay/build \
 curl -X POST localhost:8000/api/parlay/build \
   -H 'Content-Type: application/json' -d '{"sport":"nfl"}'
 ```
+
+## Frontend (Next.js dashboard)
+
+```bash
+cd frontend
+npm install
+npm run dev   # → http://localhost:3000  (expects the API on :8000)
+```
+
+The dashboard renders the SRS §07 views: the **Agent Feed** (live floor-verified
+picks with floor/line gap bars, confidence badges, and enrichment flags), the
+**Parlay Builder** (8-leg SGP or an explicit NO BET), and **Model Health**
+(circuit-breaker status per feed). Set `NEXT_PUBLIC_API_URL` to point at a
+non-local backend.
+
+## Switching to the live SportRadar feed
+
+The backend defaults to the bundled sample feed. To pull real NBA game logs:
+
+```bash
+export EDGEIQ_FEED_PROVIDER=sportradar
+export EDGEIQ_SPORTRADAR_API_KEY=your_key   # else it degrades back to sample
+```
+
+Every feed call runs under a circuit breaker; an outage or stale data trips it
+and hard-stops downstream agents (SRS §01), surfaced at `/api/feed/health`.
 
 ## Local infrastructure
 

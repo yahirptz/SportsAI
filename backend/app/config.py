@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     parlay_legs: int = 8  # Required legs for a same-game parlay.
     min_correlation_for_block: float = 0.0  # Block negatively correlated legs.
 
+    # Data ingestion (SRS §01). "sample" | "sportradar".
+    feed_provider: str = "sample"
+    sportradar_api_key: str | None = None
+    sportradar_base_url: str = "https://api.sportradar.com/nba/trial/v8/en"
+    sportradar_lookback_days: int = 30  # bound the game-log walk-back.
+
     # External services (placeholders — wired in later phases).
     claude_model: str = "claude-sonnet-4-20250514"
     database_url: str = "postgresql://edgeiq:edgeiq@localhost:5432/edgeiq"

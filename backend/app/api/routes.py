@@ -12,9 +12,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, HTTPException
 
 from app.config import settings
+from app.feeds import HEALTH_REGISTRY, get_provider
 from app.grading import grade_pick
-from app.pipeline import build_game_parlay, generate_picks
-from app.sample_data import SAMPLE_GAMES, SAMPLE_PROPS
+from app.parlay.builder import build_parlay
+from app.pipeline import generate_picks
 from app.sports.registry import SPORTS, Sport
 
 router = APIRouter()
@@ -29,6 +30,14 @@ def _resolve_sport(sport: str) -> Sport:
         return Sport(sport.lower())
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Unknown sport: {sport!r}")
+
+
+def _busiest_game(props) -> str:
+    """Return the game_id with the most candidate props on the slate."""
+    counts: dict[str, int] = {}
+    for p in props:
+        counts[p.game_id] = counts.get(p.game_id, 0) + 1
+    return max(counts, key=counts.get)
 
 
 @router.get("/sports", summary="List configured sports and their status")
@@ -49,7 +58,7 @@ def list_sports():
 @router.get("/picks/{sport}", summary="Floor-verified picks for a sport")
 def get_picks(sport: str):
     s = _resolve_sport(sport)
-    props = SAMPLE_PROPS.get(s, [])
+    props = get_provider().slate(s)
     picks = generate_picks(s, props, _BANKROLL["balance"])
     for p in picks:
         _PICK_INDEX[p.id] = p
@@ -63,12 +72,13 @@ def build_parlay_route(
     game_id: str | None = Body(default=None),
 ):
     s = _resolve_sport(sport)
-    game = game_id or SAMPLE_GAMES.get(s)
-    if not game:
-        raise HTTPException(status_code=400, detail="No game_id provided and no sample game.")
-    props = SAMPLE_PROPS.get(s, [])
-    parlay = build_game_parlay(s, game, props, _BANKROLL["balance"])
-    return parlay
+    props = get_provider().slate(s)
+    if not props:
+        raise HTTPException(status_code=400, detail=f"No props available for {s.value}.")
+    # Default to the busiest game on the slate if no game_id is supplied.
+    game = game_id or _busiest_game(props)
+    candidates = [p for p in generate_picks(s, props, _BANKROLL["balance"]) if p.game_id == game]
+    return build_parlay(game, s, candidates, bankroll=_BANKROLL["balance"])
 
 
 @router.get("/bankroll", summary="Read current bankroll")
@@ -124,3 +134,9 @@ def rules(sport: str):
 @router.get("/shadow/status", summary="Shadow test progress and pending promotions")
 def shadow_status():
     return {"status": "pending_data", "active_tests": [], "pending_promotions": []}
+
+
+@router.get("/feed/health", summary="Circuit-breaker status per data source")
+def feed_health():
+    """Powers the Model Health view (SRS §07) from the feed_health registry."""
+    return {"active_provider": get_provider().name, "feeds": HEALTH_REGISTRY.snapshot()}
