@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     sportradar_api_key: str | None = None
     sportradar_base_url: str = "https://api.sportradar.com/nba/trial/v8/en"
     sportradar_lookback_days: int = 30  # bound the game-log walk-back.
+    odds_lines_path: str = "data/lines.json"  # operator-supplied lines bridge.
 
     # External services (placeholders — wired in later phases).
     claude_model: str = "claude-sonnet-4-20250514"

@@ -1,0 +1,16 @@
+{
+  "_comment": "Operator-supplied sportsbook lines (SRS §01 bridge until OddsJam/FanDuel are wired). Format: sport -> player name -> market -> [line, american_odds]. Replace these with the real lines from your book. Seeded here for the Cavaliers/Knicks playoff game so the live SportRadar feed produces real picks end to end.",
+  "nba": {
+    "Donovan Mitchell": { "pts": [22.5, -115], "ast": [0.5, -150], "reb": [1.5, -130] },
+    "Evan Mobley": { "pts": [13.5, -110], "reb": [5.5, -110], "ast": [1.5, -120] },
+    "Jarrett Allen": { "pts": [5.5, -115], "reb": [2.5, -120] },
+    "James Harden": { "pts": [8.5, -110], "ast": [1.5, -120], "reb": [3.5, -115] },
+    "Sam Merrill": { "pts": [3.5, -110] },
+    "Max Strus": { "pts": [4.5, -110] },
+    "Jalen Brunson": { "pts": [14.5, -115], "ast": [4.5, -110] },
+    "Josh Hart": { "pts": [5.5, -110], "reb": [3.5, -115], "ast": [0.5, -160] },
+    "Karl-Anthony Towns": { "pts": [12.5, -115], "reb": [3.5, -120] },
+    "Mikal Bridges": { "pts": [11.5, -110] },
+    "Mitchell Robinson": { "pts": [1.5, -130], "reb": [2.5, -120] }
+  }
+}

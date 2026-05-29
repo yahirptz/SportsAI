@@ -91,8 +91,15 @@ The backend defaults to the bundled sample feed. To pull real NBA game logs:
 
 ```bash
 export EDGEIQ_FEED_PROVIDER=sportradar
-export EDGEIQ_SPORTRADAR_API_KEY=your_key   # else it degrades back to sample
+export EDGEIQ_SPORTRADAR_API_KEY=your_nba_key   # else it degrades back to sample
 ```
+
+The adapter assembles each player's last-N game logs from SportRadar's
+`summary.json` endpoint (walking recent daily schedules), and prices them against
+operator-supplied lines in [`backend/data/lines.json`](backend/data/lines.json)
+— SportRadar provides stats, not odds, so you paste the lines from your book
+there (keyed by player name) until the OddsJam/FanDuel feed is wired. Responses
+are disk-cached and rate-limit-aware (429 backoff) for the trial tier.
 
 Every feed call runs under a circuit breaker; an outage or stale data trips it
 and hard-stops downstream agents (SRS §01), surfaced at `/api/feed/health`.
