@@ -23,6 +23,7 @@ def _logs(values: list[float]) -> list[GameLog]:
 
 _NBA_GAME = "nba-2026-05-29-BOS-NYK"
 _NFL_GAME = "nfl-2026-09-12-KC-BUF"
+_MLB_GAME = "mlb-2026-05-29-LAD-SD"
 
 
 def _nba_props() -> list[PropInput]:
@@ -73,9 +74,44 @@ def _nfl_props() -> list[PropInput]:
     ]
 
 
+def _mlb_props() -> list[PropInput]:
+    g = _MLB_GAME
+    # MLB sample window is last-10. The floor model requires the stat to occur
+    # in ALL 10 games, so only consistent contact hitters / a starter's Ks pass
+    # — exactly the conservative behaviour the SRS specifies for baseball.
+    return [
+        PropInput(g, "betts", "Mookie Betts", "hits", 0.5, -135, _logs([1, 2, 1, 1, 2, 1, 1, 3, 1, 2]),
+                  EnrichmentContext(reddit_sentiment=0.3, public_bet_pct=44)),
+        PropInput(g, "betts", "Mookie Betts", "tb", 0.5, -140, _logs([1, 3, 2, 1, 4, 1, 2, 5, 1, 3]),
+                  EnrichmentContext(reddit_sentiment=0.3)),
+        PropInput(g, "freeman", "Freddie Freeman", "hits", 0.5, -130, _logs([2, 1, 1, 1, 1, 2, 1, 1, 1, 2]),
+                  EnrichmentContext(reddit_sentiment=0.2, public_bet_pct=40)),
+        PropInput(g, "ohtani", "Shohei Ohtani", "tb", 1.5, -120, _logs([2, 4, 3, 2, 5, 2, 4, 3, 2, 6]),
+                  EnrichmentContext(reddit_sentiment=0.5, public_bet_pct=35, reverse_line_movement=True)),
+        PropInput(g, "smith", "Will Smith", "hits", 0.5, -125, _logs([1, 1, 2, 1, 1, 1, 2, 1, 1, 1]),
+                  EnrichmentContext(reddit_sentiment=0.1)),
+        PropInput(g, "machado", "Manny Machado", "tb", 0.5, -130, _logs([1, 2, 1, 3, 1, 2, 1, 1, 4, 1]),
+                  EnrichmentContext(reddit_sentiment=0.2, public_bet_pct=48)),
+        PropInput(g, "tatis", "Fernando Tatis Jr.", "hits", 0.5, -135, _logs([1, 1, 1, 2, 1, 1, 3, 1, 1, 2]),
+                  EnrichmentContext(reddit_sentiment=0.4, public_bet_pct=42)),
+        PropInput(g, "bogaerts", "Xander Bogaerts", "hits", 0.5, -125, _logs([1, 2, 1, 1, 1, 1, 1, 2, 1, 1]),
+                  EnrichmentContext(reddit_sentiment=0.1, public_bet_pct=50)),
+        PropInput(g, "darvish", "Yu Darvish", "k_pitcher", 4.5, -115, _logs([6, 7, 5, 8, 6, 7, 5, 9, 6, 7]),
+                  EnrichmentContext(reddit_sentiment=0.3, public_bet_pct=46, reverse_line_movement=True)),
+        # Ineligible: a hitless game in the window (min 0) — discarded.
+        PropInput(g, "cronenworth", "Jake Cronenworth", "hits", 1.5, -110, _logs([1, 0, 1, 2, 1, 1, 0, 1, 1, 1]),
+                  EnrichmentContext()),
+    ]
+
+
 SAMPLE_PROPS: dict[Sport, list[PropInput]] = {
     Sport.NBA: _nba_props(),
     Sport.NFL: _nfl_props(),
+    Sport.MLB: _mlb_props(),
 }
 
-SAMPLE_GAMES: dict[Sport, str] = {Sport.NBA: _NBA_GAME, Sport.NFL: _NFL_GAME}
+SAMPLE_GAMES: dict[Sport, str] = {
+    Sport.NBA: _NBA_GAME,
+    Sport.NFL: _NFL_GAME,
+    Sport.MLB: _MLB_GAME,
+}

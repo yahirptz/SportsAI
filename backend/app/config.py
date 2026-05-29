@@ -28,9 +28,11 @@ class Settings(BaseSettings):
     min_correlation_for_block: float = 0.0  # Block negatively correlated legs.
 
     # Data ingestion (SRS §01). "sample" | "sportradar".
+    # SportRadar issues a separate key per sport/product.
     feed_provider: str = "sample"
-    sportradar_api_key: str | None = None
-    sportradar_base_url: str = "https://api.sportradar.com/nba/trial/v8/en"
+    sportradar_api_key: str | None = None  # NBA
+    sportradar_mlb_api_key: str | None = None  # MLB
+    sportradar_access: str = "trial"  # trial | production
     sportradar_lookback_days: int = 30  # bound the game-log walk-back.
     odds_lines_path: str = "data/lines.json"  # operator-supplied lines bridge.
 

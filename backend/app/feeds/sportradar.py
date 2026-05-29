@@ -1,29 +1,29 @@
 """SportRadar feed adapter (SRS §01 — primary structured source).
 
-Pulls real NBA player game logs from the SportRadar NBA v8 API and pairs them
-with an :class:`~app.feeds.odds.OddsBook` to build the prop slate. Every network
-call runs under a :class:`~app.feeds.circuit.CircuitBreaker`, so a SportRadar
-outage or staleness trips the breaker and hard-stops downstream agents (SRS §01).
+Multi-sport: SportRadar issues a separate key and endpoint per sport, so the
+provider builds a per-sport client lazily from settings. NBA is verified against
+the live API; MLB plumbing is in place and activates as soon as an MLB key is
+supplied (its stat field-paths are marked for verification against a real
+response — the same care taken for NBA, where summary.json carries player stats
+and boxscore.json does not).
 
-Player game logs are assembled from the **game summary** endpoint (which carries
-per-player statistics). The flow:
-
+Flow per sport:
   1. Walk back recent daily schedules to collect closed games (the window).
   2. Pick target games (today's slate; else the most recent completed matchup).
   3. For each team, read its last-N closed games' summaries and accumulate each
      player's per-stat values into a last-N log.
   4. Price each (player, stat) against the odds book; skip anything unpriced.
 
-Responses are disk-cached (historical data is immutable) to respect the trial
-tier's rate limit. Requires ``EDGEIQ_SPORTRADAR_API_KEY``; without it,
-:func:`build_sportradar_provider` raises ``FeedError`` and the app degrades to
-the sample feed.
+Responses are disk-cached (immutable history) with 429 backoff for the trial
+tier. Selecting the SportRadar provider with no key for a given sport yields an
+empty slate for that sport rather than an error.
 """
 
 from __future__ import annotations
 
 import time
 from datetime import date, timedelta
+from typing import Callable
 
 import httpx
 
@@ -37,46 +37,108 @@ from app.models.schemas import EnrichmentContext
 from app.pipeline import PropInput
 from app.sports.registry import Sport, get_config
 
-# Map our stat keys → how to derive them from a SportRadar player statistics dict.
-_STAT_EXTRACTORS = {
-    "pts": lambda s: s.get("points", 0),
-    "reb": lambda s: s.get("rebounds", 0),
-    "ast": lambda s: s.get("assists", 0),
-    "fg3m": lambda s: s.get("three_points_made", 0),
-    "pra": lambda s: s.get("points", 0) + s.get("rebounds", 0) + s.get("assists", 0),
-    "pa": lambda s: s.get("points", 0) + s.get("assists", 0),
-    "ra": lambda s: s.get("rebounds", 0) + s.get("assists", 0),
-}
-
 _RATE_LIMIT_SLEEP = 1.3  # seconds between live calls (trial tier ~1 req/sec)
+
+# SportRadar URL path segment + API version per sport.
+_SPORT_PATH = {Sport.NBA: ("nba", "v8"), Sport.MLB: ("mlb", "v8")}
+
+
+def _endpoint_for(sport: Sport) -> tuple[str | None, str | None]:
+    """Return (base_url, api_key) for a sport, or (None, None) if unsupported."""
+    if sport not in _SPORT_PATH:
+        return None, None
+    path, version = _SPORT_PATH[sport]
+    base = f"https://api.sportradar.com/{path}/{settings.sportradar_access}/{version}/en"
+    key = {
+        Sport.NBA: settings.sportradar_api_key,
+        Sport.MLB: settings.sportradar_mlb_api_key,
+    }.get(sport)
+    return base, key
+
+
+# --- Per-sport stat extraction ----------------------------------------------
+# Each extractor takes a player's full record (from summary.json) and returns a
+# numeric stat value. NBA paths are verified live. MLB paths are best-effort and
+# MUST be confirmed against a real MLB summary response before trusting live
+# output (defensive .get chains mean an unverified path yields 0, not a crash).
+
+
+def _nba(key: str) -> Callable[[dict], float]:
+    return lambda p: float((p.get("statistics") or {}).get(key, 0) or 0)
+
+
+def _nba_combo(*keys: str) -> Callable[[dict], float]:
+    return lambda p: float(sum((p.get("statistics") or {}).get(k, 0) or 0 for k in keys))
+
+
+def _mlb_hit(*path: str) -> Callable[[dict], float]:
+    def extract(p: dict) -> float:
+        node = (p.get("statistics") or {}).get("hitting", {}).get("overall", {})
+        for seg in path:
+            node = node.get(seg, {}) if isinstance(node, dict) else {}
+        return float(node if isinstance(node, (int, float)) else 0)
+
+    return extract
+
+
+def _mlb_pitch(*path: str) -> Callable[[dict], float]:
+    def extract(p: dict) -> float:
+        node = (p.get("statistics") or {}).get("pitching", {}).get("overall", {})
+        for seg in path:
+            node = node.get(seg, {}) if isinstance(node, dict) else {}
+        return float(node if isinstance(node, (int, float)) else 0)
+
+    return extract
+
+
+EXTRACTORS: dict[Sport, dict[str, Callable[[dict], float]]] = {
+    Sport.NBA: {
+        "pts": _nba("points"),
+        "reb": _nba("rebounds"),
+        "ast": _nba("assists"),
+        "fg3m": _nba("three_points_made"),
+        "pra": _nba_combo("points", "rebounds", "assists"),
+        "pa": _nba_combo("points", "assists"),
+        "ra": _nba_combo("rebounds", "assists"),
+    },
+    # MLB field-paths are provisional — verify against a live MLB summary.json.
+    Sport.MLB: {
+        "hits": _mlb_hit("onbase", "h"),
+        "rbi": _mlb_hit("rbi"),
+        "runs": _mlb_hit("runs", "total"),
+        "tb": _mlb_hit("onbase", "tb"),
+        "bb": _mlb_hit("onbase", "bb"),
+        "k_pitcher": _mlb_pitch("outs", "ktotal"),
+    },
+}
 
 
 class SportRadarStats:
-    """Client over the SportRadar NBA v8 endpoints, with disk caching."""
+    """Client over the SportRadar endpoints for one sport, with disk caching."""
 
-    def __init__(self, api_key: str, base_url: str, *, timeout: float = 15.0) -> None:
-        self.api_key = api_key
+    def __init__(self, base_url: str, api_key: str, *, timeout: float = 15.0) -> None:
         self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
         self._client = httpx.Client(timeout=timeout)
         self._cache = DiskCache()
 
     def _get(self, path: str, *, max_retries: int = 4) -> dict:
-        cached = self._cache.get(path)
+        cache_key = f"{self.base_url}/{path}"
+        cached = self._cache.get(cache_key)
         if cached is not None:
-            return cached  # immutable historical data — never refetch
+            return cached
         url = f"{self.base_url}/{path.lstrip('/')}"
         backoff = 2.0
-        for attempt in range(max_retries):
+        for _ in range(max_retries):
             resp = self._client.get(url, params={"api_key": self.api_key})
-            if resp.status_code == 429:  # trial rate cap — honor Retry-After
-                wait = float(resp.headers.get("Retry-After", backoff))
-                time.sleep(wait)
+            if resp.status_code == 429:
+                time.sleep(float(resp.headers.get("Retry-After", backoff)))
                 backoff = min(backoff * 2, 30)
                 continue
             resp.raise_for_status()
             data = resp.json()
-            self._cache.set(path, data)
-            time.sleep(_RATE_LIMIT_SLEEP)  # space out subsequent live calls
+            self._cache.set(cache_key, data)
+            time.sleep(_RATE_LIMIT_SLEEP)
             return data
         raise FeedError(f"SportRadar rate-limited after {max_retries} retries: {path}")
 
@@ -87,7 +149,6 @@ class SportRadarStats:
         return self._get(f"games/{game_id}/summary.json")
 
     def recent_games(self, lookback_days: int) -> list[dict]:
-        """Walk back daily schedules; return games (closed + upcoming) in window."""
         games: list[dict] = []
         day = date.today()
         for _ in range(lookback_days):
@@ -97,16 +158,12 @@ class SportRadarStats:
             day -= timedelta(days=1)
         return games
 
-    def close(self) -> None:
-        self._client.close()
-
 
 def _team_ids(game: dict) -> tuple[str, str]:
     return game.get("home", {}).get("id", ""), game.get("away", {}).get("id", "")
 
 
 def _player_lines(summary: dict, team_id: str) -> list[dict]:
-    """Return the player stat lines for ``team_id`` from a game summary."""
     for side in ("home", "away"):
         if summary.get(side, {}).get("id") == team_id:
             return summary[side].get("players", [])
@@ -114,101 +171,96 @@ def _player_lines(summary: dict, team_id: str) -> list[dict]:
 
 
 class SportRadarFeedProvider:
-    """Builds the prop slate from real SportRadar logs + an odds book."""
+    """Builds the prop slate for any supported sport from real logs + odds book."""
 
     name = "sportradar"
 
-    def __init__(self, stats: SportRadarStats, odds: OddsBook) -> None:
-        self._stats = stats
+    def __init__(self, odds: OddsBook) -> None:
         self._odds = odds
+        self._clients: dict[Sport, SportRadarStats] = {}
         self._breaker = CircuitBreaker("sportradar")
 
+    def _client(self, sport: Sport) -> SportRadarStats | None:
+        if sport in self._clients:
+            return self._clients[sport]
+        base, key = _endpoint_for(sport)
+        if not base or not key:
+            return None
+        client = SportRadarStats(base, key)
+        self._clients[sport] = client
+        return client
+
     def slate(self, sport: Sport) -> list[PropInput]:
-        if sport is not Sport.NBA:
-            return []  # this adapter currently covers NBA
-        return self._breaker.call(lambda: self._build_slate(sport))
+        client = self._client(sport)
+        if client is None:
+            return []  # no key for this sport
+        return self._breaker.call(lambda: self._build_slate(sport, client))
 
     def candidates(self, sport: Sport) -> list[dict]:
-        """All (player, market) pairs on the target slate with full samples.
-
-        Used by the odds workflow to surface which markets still need a line.
-        Independent of pricing (unlike :meth:`slate`).
-        """
-        if sport is not Sport.NBA:
+        client = self._client(sport)
+        if client is None:
             return []
         config = get_config(sport)
         bettable = [s.key for s in config.stats if not s.ceiling_prop]
-        window = self._stats.recent_games(settings.sportradar_lookback_days)
-        rows: list[dict] = []
-        seen: set[tuple[str, str]] = set()
+        window = client.recent_games(settings.sportradar_lookback_days)
+        rows, seen = [], set()
         for game in self._target_games(window):
             for team_id in _team_ids(game):
                 if not team_id:
                     continue
-                logs = self._team_last_n_logs(window, team_id, config.sample_window)
-                for rec in logs.values():
-                    name = rec["name"]
+                for rec in self._team_last_n_logs(sport, client, window, team_id, config.sample_window).values():
                     for stat_key in bettable:
                         vals = rec["stats"].get(stat_key, [])
-                        if len(vals) < config.sample_window or (name, stat_key) in seen:
+                        if len(vals) < config.sample_window or (rec["name"], stat_key) in seen:
                             continue
-                        seen.add((name, stat_key))
+                        seen.add((rec["name"], stat_key))
                         spec = config.stat(stat_key)
                         rows.append({
-                            "player": name,
-                            "market": stat_key,
+                            "player": rec["name"], "market": stat_key,
                             "market_label": spec.label if spec else stat_key,
                             "floor_hint": min(vals),
                         })
         return rows
 
     def _target_games(self, window: list[dict]) -> list[dict]:
-        """Prefer today's scheduled games; else the most recent completed game."""
         today = str(date.today())
         upcoming = [g for g in window if g["_date"] == today and g.get("status") != "closed"]
         if upcoming:
             return upcoming[:2]
-        closed = [g for g in window if g.get("status") == "closed"]
-        return closed[:1]
+        return [g for g in window if g.get("status") == "closed"][:1]
 
     def _team_last_n_logs(
-        self, window: list[dict], team_id: str, n: int
+        self, sport: Sport, client: SportRadarStats, window: list[dict], team_id: str, n: int
     ) -> dict[str, dict]:
-        """Accumulate each player's last-N per-stat values for one team.
-
-        Returns ``{player_id: {"name": str, "stats": {stat_key: [values]}}}`` with
-        values ordered most-recent-first.
-        """
+        extractors = EXTRACTORS.get(sport, {})
         team_games = [
-            g for g in window
-            if g.get("status") == "closed" and team_id in _team_ids(g)
+            g for g in window if g.get("status") == "closed" and team_id in _team_ids(g)
         ]
         team_games.sort(key=lambda g: g["_date"], reverse=True)
-
         players: dict[str, dict] = {}
         for game in team_games[:n]:
-            summary = self._stats.summary(game["id"])
+            summary = client.summary(game["id"])
             for p in _player_lines(summary, team_id):
                 pid = p.get("id")
-                stats = p.get("statistics") or {}
-                if not pid or not stats:
+                if not pid:
                     continue
                 rec = players.setdefault(pid, {"name": p.get("full_name", ""), "stats": {}})
-                for stat_key, extract in _STAT_EXTRACTORS.items():
-                    rec["stats"].setdefault(stat_key, []).append(float(extract(stats)))
+                for stat_key, extract in extractors.items():
+                    rec["stats"].setdefault(stat_key, []).append(extract(p))
         return players
 
-    def _build_slate(self, sport: Sport) -> list[PropInput]:
+    def _build_slate(self, sport: Sport, client: SportRadarStats) -> list[PropInput]:
         config = get_config(sport)
         bettable = [s.key for s in config.stats if not s.ceiling_prop]
-        window = self._stats.recent_games(settings.sportradar_lookback_days)
-
+        window = client.recent_games(settings.sportradar_lookback_days)
         props: list[PropInput] = []
         for game in self._target_games(window):
             for team_id in _team_ids(game):
                 if not team_id:
                     continue
-                logs_by_player = self._team_last_n_logs(window, team_id, config.sample_window)
+                logs_by_player = self._team_last_n_logs(
+                    sport, client, window, team_id, config.sample_window
+                )
                 for pid, rec in logs_by_player.items():
                     name = rec["name"]
                     for stat_key in bettable:
@@ -225,13 +277,8 @@ class SportRadarFeedProvider:
                         ]
                         props.append(
                             PropInput(
-                                game_id=game["id"],
-                                player_id=pid,
-                                player_name=name,
-                                stat_key=stat_key,
-                                line=line,
-                                odds=odds,
-                                logs=logs,
+                                game_id=game["id"], player_id=pid, player_name=name,
+                                stat_key=stat_key, line=line, odds=odds, logs=logs,
                                 enrichment=EnrichmentContext(),
                             )
                         )
@@ -239,20 +286,19 @@ class SportRadarFeedProvider:
 
 
 def build_sportradar_provider(odds: OddsBook | None = None) -> SportRadarFeedProvider:
-    """Construct the SportRadar provider, or raise ``FeedError`` if unconfigured."""
-    if not settings.sportradar_api_key:
-        raise FeedError("SportRadar selected but EDGEIQ_SPORTRADAR_API_KEY is not set.")
-    stats = SportRadarStats(settings.sportradar_api_key, settings.sportradar_base_url)
-    if odds is None:
-        odds = _load_default_odds()
-    return SportRadarFeedProvider(stats, odds)
+    """Construct the multi-sport SportRadar provider.
+
+    Raises ``FeedError`` only if no sport has a key configured at all, so the app
+    can degrade to the sample feed. A sport without a key simply yields an empty
+    slate.
+    """
+    if not (settings.sportradar_api_key or settings.sportradar_mlb_api_key):
+        raise FeedError("SportRadar selected but no sport key is configured.")
+    return SportRadarFeedProvider(odds or _load_default_odds())
 
 
 def _load_default_odds() -> OddsBook:
-    """Load operator-supplied lines from data/lines.json if present."""
     from pathlib import Path
 
     path = Path(settings.odds_lines_path)
-    if path.exists():
-        return StaticOddsBook.from_json(path)
-    return StaticOddsBook()
+    return StaticOddsBook.from_json(path) if path.exists() else StaticOddsBook()

@@ -17,7 +17,7 @@ it — is implemented, tested, and runnable end to end against a sample feed.
 
 | Layer | Status | Where |
 |-------|--------|-------|
-| Sport Router + multi-sport config (10 sports, NBA/NFL active) | ✅ | [`app/sports/registry.py`](backend/app/sports/registry.py) |
+| Sport Router + multi-sport config (10 sports; NBA/NFL/MLB active) | ✅ | [`app/sports/registry.py`](backend/app/sports/registry.py) |
 | **Floor Model engine** (9 absolute rules, fully tested) | ✅ | [`app/floor/engine.py`](backend/app/floor/engine.py) |
 | Confidence Scorer (6 weighted factors) | ✅ | [`app/scoring/confidence.py`](backend/app/scoring/confidence.py) |
 | Kelly Sizer (fractional Kelly + stake caps) | ✅ | [`app/scoring/kelly.py`](backend/app/scoring/kelly.py) |
