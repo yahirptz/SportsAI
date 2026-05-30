@@ -1,5 +1,8 @@
 {
-  "_comment": "Operator-supplied GAME-LEVEL odds (moneyline + total). away/home are the book's full team names; matched to the SportRadar schedule by team nickname. Totals are stored but not yet modelled. Tonight's MLB slate (2026-05-29).",
+  "_comment": "Operator-supplied GAME-LEVEL odds (moneyline + total). away/home are the book's full team names; matched to the SportRadar schedule by team nickname. Add lines via POST /api/games/lines.",
+  "nba": [
+    {"away": "New York Knicks", "home": "Cleveland Cavaliers", "away_ml": 110, "home_ml": -130, "total": 212.5}
+  ],
   "mlb": [
     {"away": "Atlanta Braves", "home": "Cincinnati Reds", "away_ml": -132, "home_ml": 112, "total": 9.5},
     {"away": "Minnesota Twins", "home": "Pittsburgh Pirates", "away_ml": 114, "home_ml": -134, "total": 8},

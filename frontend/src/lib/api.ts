@@ -83,6 +83,7 @@ export interface GameValue {
   proj_home_runs: number | null;
   proj_away_runs: number | null;
   proj_total: number | null;
+  proj_margin: number | null;
   total: number | null;
   total_lean: TotalLean | null;
   best: MoneylineEdge | null;

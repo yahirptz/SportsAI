@@ -18,6 +18,10 @@ from app.games.model import (
     Starter,
     american_to_prob,
     game_value,
+    nba_game_value,
 )
 
-__all__ = ["GameValue", "MoneylineEdge", "Starter", "american_to_prob", "game_value"]
+__all__ = [
+    "GameValue", "MoneylineEdge", "Starter",
+    "american_to_prob", "game_value", "nba_game_value",
+]

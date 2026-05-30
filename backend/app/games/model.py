@@ -17,6 +17,8 @@ grounded in the single most important input, which the record-only model lacked.
 
 from __future__ import annotations
 
+import math
+
 from pydantic import BaseModel, Field
 
 from app.config import settings
@@ -99,14 +101,62 @@ class GameValue(BaseModel):
     away_record: str
     home_starter: Starter | None = None
     away_starter: Starter | None = None
-    proj_home_runs: float | None = None
-    proj_away_runs: float | None = None
+    proj_home_runs: float | None = None  # projected home score (runs or points)
+    proj_away_runs: float | None = None  # projected away score
     proj_total: float | None = None
+    proj_margin: float | None = None     # projected home margin (home - away)
     total: float | None = None
     total_lean: TotalLean | None = None
     best: MoneylineEdge | None = None
     edges: list[MoneylineEdge] = Field(default_factory=list)
     note: str | None = None
+
+
+def _assemble(
+    *, game_id, home, away, home_record, away_record, exp_home, exp_away, p_home,
+    home_ml, away_ml, total, bankroll, note, total_threshold=TOTAL_LEAN_THRESHOLD,
+    home_starter=None, away_starter=None,
+) -> GameValue:
+    """Shared assembly: ML edges, total lean, projected total/margin."""
+    p_home = min(0.95, max(0.05, p_home))
+    p_away = 1 - p_home
+    ih, ia = american_to_prob(home_ml), american_to_prob(away_ml)
+    overround = ih + ia
+    fair_home, fair_away = ih / overround, ia / overround
+
+    def _edge(side, team, odds, mp, fp) -> MoneylineEdge:
+        edge = round(mp - fp, 4)
+        stake = 0.0
+        if edge > ML_LEAN_THRESHOLD:
+            b = american_to_decimal(odds) - 1
+            f = max(0.0, (b * mp - (1 - mp)) / b) if b > 0 else 0.0
+            stake = round(min(bankroll * settings.kelly_fraction * f, bankroll * settings.max_stake_pct), 2)
+        return MoneylineEdge(side=side, team=team, odds=odds, model_prob=round(mp, 4),
+                             implied_prob=round(fp, 4), edge=edge, kelly_stake=stake)
+
+    edges = [_edge("home", home, home_ml, p_home, fair_home),
+             _edge("away", away, away_ml, p_away, fair_away)]
+    leans = [e for e in edges if e.edge > ML_LEAN_THRESHOLD]
+    best = max(leans, key=lambda e: e.edge) if leans else None
+
+    proj_total = round(exp_home + exp_away, 2)
+    total_lean = None
+    if total is not None:
+        diff = round(proj_total - total, 2)
+        if diff > total_threshold:
+            total_lean = TotalLean(pick="over", line=total, projected=proj_total, diff=diff)
+        elif diff < -total_threshold:
+            total_lean = TotalLean(pick="under", line=total, projected=proj_total, diff=diff)
+
+    return GameValue(
+        game_id=game_id, home=home, away=away,
+        home_record=f"{home_record[0]}-{home_record[1]}",
+        away_record=f"{away_record[0]}-{away_record[1]}",
+        home_starter=home_starter, away_starter=away_starter,
+        proj_home_runs=round(exp_home, 2), proj_away_runs=round(exp_away, 2),
+        proj_total=proj_total, proj_margin=round(exp_home - exp_away, 2),
+        total=total, total_lean=total_lean, edges=edges, best=best, note=note,
+    )
 
 
 def game_value(
@@ -133,45 +183,54 @@ def game_value(
     exp_away = _runs_allowed_profile(home_era) * _offense_factor(away_wp)
     proj_total = round(exp_home + exp_away, 2)
 
-    p_home = min(0.95, max(0.05, _pythagorean(exp_home, exp_away)))
-    p_away = 1 - p_home
-
-    ih, ia = american_to_prob(home_ml), american_to_prob(away_ml)
-    overround = ih + ia
-    fair_home, fair_away = ih / overround, ia / overround
-
-    def _edge(side, team, odds, mp, fp) -> MoneylineEdge:
-        edge = round(mp - fp, 4)
-        stake = 0.0
-        if edge > ML_LEAN_THRESHOLD:
-            b = american_to_decimal(odds) - 1
-            f = max(0.0, (b * mp - (1 - mp)) / b) if b > 0 else 0.0
-            stake = round(min(bankroll * settings.kelly_fraction * f, bankroll * settings.max_stake_pct), 2)
-        return MoneylineEdge(side=side, team=team, odds=odds, model_prob=round(mp, 4),
-                             implied_prob=round(fp, 4), edge=edge, kelly_stake=stake)
-
-    edges = [
-        _edge("home", home, home_ml, p_home, fair_home),
-        _edge("away", away, away_ml, p_away, fair_away),
-    ]
-    leans = [e for e in edges if e.edge > ML_LEAN_THRESHOLD]
-    best = max(leans, key=lambda e: e.edge) if leans else None
-
-    total_lean = None
-    if total is not None:
-        diff = round(proj_total - total, 2)
-        if diff > TOTAL_LEAN_THRESHOLD:
-            total_lean = TotalLean(pick="over", line=total, projected=proj_total, diff=diff)
-        elif diff < -TOTAL_LEAN_THRESHOLD:
-            total_lean = TotalLean(pick="under", line=total, projected=proj_total, diff=diff)
-
-    return GameValue(
+    p_home = _pythagorean(exp_home, exp_away)
+    return _assemble(
         game_id=game_id, home=home, away=away,
-        home_record=f"{home_record[0]}-{home_record[1]}",
-        away_record=f"{away_record[0]}-{away_record[1]}",
+        home_record=home_record, away_record=away_record,
+        exp_home=exp_home, exp_away=exp_away, p_home=p_home,
+        home_ml=home_ml, away_ml=away_ml, total=total, bankroll=bankroll,
         home_starter=home_starter, away_starter=away_starter,
-        proj_home_runs=round(exp_home, 2), proj_away_runs=round(exp_away, 2),
-        proj_total=proj_total, total=total, total_lean=total_lean,
-        edges=edges, best=best,
         note="Pitcher-aware model. Leans are model-vs-market gaps, not guaranteed edges.",
+    )
+
+
+# --- NBA: team offensive/defensive scoring + pace ---------------------------
+
+NBA_HOME_COURT_PTS = 2.6      # typical NBA home-court advantage in points
+NBA_MARGIN_SIGMA = 12.0       # std dev of NBA game margins (points)
+NBA_TOTAL_THRESHOLD = 8.0     # points; wide because the model is season-based
+
+
+def nba_game_value(
+    *,
+    game_id: str,
+    home: str,
+    away: str,
+    home_record: tuple[int, int],
+    away_record: tuple[int, int],
+    home_off: float,
+    home_def: float,
+    away_off: float,
+    away_def: float,
+    league_avg: float,
+    home_ml: int,
+    away_ml: int,
+    bankroll: float,
+    total: float | None = None,
+) -> GameValue:
+    """NBA value: expected points from team off/def ratings (log5-style),
+    win probability from the projected margin via a normal model."""
+    # Each team's expected points = its offense scaled by the opponent's defense
+    # relative to league average; home court split across the two sides.
+    exp_home = home_off * (away_def / league_avg) + NBA_HOME_COURT_PTS / 2
+    exp_away = away_off * (home_def / league_avg) - NBA_HOME_COURT_PTS / 2
+    margin = exp_home - exp_away
+    p_home = 0.5 * (1 + math.erf(margin / (NBA_MARGIN_SIGMA * math.sqrt(2))))
+    return _assemble(
+        game_id=game_id, home=home, away=away,
+        home_record=home_record, away_record=away_record,
+        exp_home=exp_home, exp_away=exp_away, p_home=p_home,
+        home_ml=home_ml, away_ml=away_ml, total=total, bankroll=bankroll,
+        total_threshold=NBA_TOTAL_THRESHOLD,
+        note="NBA scoring model (team off/def + home court). Leans are gaps, not guaranteed edges.",
     )

@@ -9,6 +9,7 @@ rather than fabricating data.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Body, HTTPException
@@ -169,6 +170,32 @@ def games(sport: str):
 
     s = _resolve_sport(sport)
     return build_game_values(s, _BANKROLL["balance"])
+
+
+@router.post("/games/lines", summary="Add or update a game line (moneyline + total)")
+def upsert_game_line(
+    sport: str = Body(...),
+    away: str = Body(...),
+    home: str = Body(...),
+    away_ml: int = Body(...),
+    home_ml: int = Body(...),
+    total: float | None = Body(default=None),
+):
+    """Persist a game-level line to game_lines.json (matched to the schedule by
+    team name). Lets you add moneylines for any sport, e.g. tonight's NBA game."""
+    s = _resolve_sport(sport)
+    path = Path("data/game_lines.json")
+    data = json.loads(path.read_text()) if path.exists() else {}
+    rows = data.setdefault(s.value, [])
+    entry = {"away": away, "home": home, "away_ml": away_ml, "home_ml": home_ml}
+    if total is not None:
+        entry["total"] = total
+    # Replace an existing matchup, else append.
+    rows[:] = [r for r in rows if not (r.get("away") == away and r.get("home") == home)]
+    rows.append(entry)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2))
+    return {"ok": True, "sport": s.value, "entry": entry}
 
 
 # --- Odds workflow (operator-supplied lines bridge, SRS §01) ----------------
