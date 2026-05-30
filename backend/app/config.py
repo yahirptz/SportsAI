@@ -54,7 +54,9 @@ class Settings(BaseSettings):
     claude_model: str = "claude-sonnet-4-20250514"
     perplexity_model: str = "sonar"
 
-    # Persistence (placeholders — wired in later phases).
+    # Persistence. Tracking store defaults to local SQLite (zero setup); point
+    # at the docker Postgres by setting EDGEIQ_TRACKING_DATABASE_URL.
+    tracking_database_url: str = "sqlite:///edgeiq.db"
     database_url: str = "postgresql://edgeiq:edgeiq@localhost:5432/edgeiq"
     timescale_url: str = "postgresql://edgeiq:edgeiq@localhost:5433/edgeiq_ts"
     redis_url: str = "redis://localhost:6379/0"

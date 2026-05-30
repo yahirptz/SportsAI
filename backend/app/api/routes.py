@@ -15,9 +15,10 @@ from pathlib import Path
 from fastapi import APIRouter, Body, HTTPException
 
 from app.config import settings
+from app.db.autograde import autograde
+from app.db.repository import open_picks, performance_summary, record_outcome, save_picks
 from app.enrichment import get_enrichment_service
 from app.feeds import HEALTH_REGISTRY, get_provider
-from app.grading import grade_pick
 from app.parlay.builder import build_parlay
 from app.pipeline import attach_reasoning, generate_picks
 from app.sports.registry import SPORTS, Sport
@@ -69,7 +70,10 @@ def get_picks(sport: str):
     attach_reasoning(picks, enrichment, settings.reasoning_max_legs)
     for p in picks:
         _PICK_INDEX[p.id] = p
-    return {"sport": s.value, "count": len(picks), "enriched": enrichment.enabled, "picks": picks}
+    # Persist surfaced picks so they can be graded later (paper trade).
+    tracked = save_picks(picks)
+    return {"sport": s.value, "count": len(picks), "enriched": enrichment.enabled,
+            "newly_tracked": tracked, "picks": picks}
 
 
 @router.post("/parlay/build", summary="Trigger the SGP builder for a game")
@@ -111,28 +115,33 @@ def update_bankroll(balance: float = Body(..., embed=True)):
     return _BANKROLL
 
 
-@router.post("/picks/{pick_id}/grade", summary="Grade a pick (Result Grader)")
+@router.post("/picks/{pick_id}/grade", summary="Grade a tracked pick (manual + optional CLV)")
 def grade_route(
     pick_id: str,
     actual_value: float = Body(...),
-    closing_line: float = Body(...),
+    closing_line: float | None = Body(default=None),
 ):
-    pick = _PICK_INDEX.get(pick_id)
-    if pick is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Pick not found. Fetch /picks/{sport} first to populate the index.",
-        )
-    return grade_pick(pick, actual_value, closing_line)  # type: ignore[arg-type]
+    result = record_outcome(pick_id, actual_value=actual_value, closing_line=closing_line)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Tracked pick not found.")
+    return result
 
 
-@router.get("/performance", summary="CLV trend, hit rate, ROI by sport")
+@router.post("/grade/run", summary="Auto-grade tracked picks from final box scores")
+def grade_run(sport: str = Body(..., embed=True)):
+    """Grade every open pick whose game has finished, using SportRadar results."""
+    s = _resolve_sport(sport)
+    return autograde(s.value)
+
+
+@router.get("/picks/tracked/open", summary="Open (ungraded) tracked picks")
+def tracked_open(sport: str | None = None):
+    return {"open": open_picks(sport)}
+
+
+@router.get("/performance", summary="Hit rate, record, ROI, CLV by sport")
 def performance():
-    # Backed by the outcomes table + Obsidian model-drift notes in a later phase.
-    return {
-        "status": "pending_data",
-        "detail": "Performance analytics populate once graded outcomes accumulate.",
-    }
+    return performance_summary()
 
 
 @router.get("/rules/{sport}", summary="Active agent rules from the Obsidian vault")

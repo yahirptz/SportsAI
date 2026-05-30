@@ -173,4 +173,27 @@ export const api = {
   bankroll: () => getJSON<{ balance: number; risk_profile: string }>("/api/bankroll"),
   feedHealth: () => getJSON<FeedHealth>("/api/feed/health"),
   games: (sport: string) => getJSON<GamesResponse>(`/api/games/${sport}`),
+  performance: () => getJSON<Performance>("/api/performance"),
+  gradeRun: (sport: string) =>
+    getJSON<{ graded: number; skipped: number }>("/api/grade/run", {
+      method: "POST",
+      body: JSON.stringify({ sport }),
+    }),
 };
+
+export interface PerfBucket {
+  graded: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  hit_rate: number | null;
+  units: number;
+  roi: number | null;
+  avg_clv: number | null;
+}
+
+export interface Performance {
+  open_picks: number;
+  overall: PerfBucket | null;
+  by_sport: Record<string, PerfBucket>;
+}

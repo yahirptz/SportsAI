@@ -14,6 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
 from app.config import settings
+from app.db import init_db
+
+init_db()  # create tracking tables if they don't exist (idempotent)
 
 app = FastAPI(
     title="EdgeIQ — Sports Intelligence Platform",

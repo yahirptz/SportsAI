@@ -7,6 +7,7 @@ import ParlayPanel from "./ParlayPanel";
 import ModelHealth from "./ModelHealth";
 import OddsPanel from "./OddsPanel";
 import GameLines from "./GameLines";
+import TrackRecord from "./TrackRecord";
 
 export default function Dashboard() {
   const [sports, setSports] = useState<SportInfo[]>([]);
@@ -156,6 +157,7 @@ export default function Dashboard() {
         {/* Right rail */}
         <aside className="space-y-5">
           <ParlayPanel parlay={parlay} loading={building} onBuild={build} />
+          <TrackRecord sport={sport} />
           <OddsPanel sport={sport} onPriced={() => loadSport(sport)} />
           <ModelHealth health={health} />
         </aside>

@@ -122,11 +122,12 @@ class SportRadarStats:
         self._client = httpx.Client(timeout=timeout)
         self._cache = DiskCache()
 
-    def _get(self, path: str, *, max_retries: int = 4) -> dict:
+    def _get(self, path: str, *, max_retries: int = 4, fresh: bool = False) -> dict:
         cache_key = f"{self.base_url}/{path}"
-        cached = self._cache.get(cache_key)
-        if cached is not None:
-            return cached
+        if not fresh:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                return cached
         url = f"{self.base_url}/{path.lstrip('/')}"
         backoff = 2.0
         for _ in range(max_retries):
@@ -145,8 +146,8 @@ class SportRadarStats:
     def schedule(self, day: date) -> dict:
         return self._get(f"games/{day.year}/{day.month:02d}/{day.day:02d}/schedule.json")
 
-    def summary(self, game_id: str) -> dict:
-        return self._get(f"games/{game_id}/summary.json")
+    def summary(self, game_id: str, *, fresh: bool = False) -> dict:
+        return self._get(f"games/{game_id}/summary.json", fresh=fresh)
 
     def recent_games(self, lookback_days: int) -> list[dict]:
         games: list[dict] = []
