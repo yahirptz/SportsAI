@@ -59,13 +59,32 @@ export interface MoneylineEdge {
   kelly_stake: number;
 }
 
+export interface Starter {
+  name: string;
+  era: number;
+  record: string;
+}
+
+export interface TotalLean {
+  pick: string;
+  line: number;
+  projected: number;
+  diff: number;
+}
+
 export interface GameValue {
   game_id: string;
   home: string;
   away: string;
   home_record: string;
   away_record: string;
+  home_starter: Starter | null;
+  away_starter: Starter | null;
+  proj_home_runs: number | null;
+  proj_away_runs: number | null;
+  proj_total: number | null;
   total: number | null;
+  total_lean: TotalLean | null;
   best: MoneylineEdge | null;
   edges: MoneylineEdge[];
   note: string | null;
@@ -74,7 +93,8 @@ export interface GameValue {
 export interface GamesResponse {
   sport: string;
   count?: number;
-  leans?: number;
+  ml_leans?: number;
+  total_leans?: number;
   model?: string;
   warning?: string;
   note?: string;

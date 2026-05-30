@@ -38,8 +38,8 @@ export default function GameLines({ sport }: { sport: string }) {
         ⚠️ {data.warning}
       </div>
       <div className="mb-3 flex items-center justify-between text-xs text-muted">
-        <span>{data.count} games · model: {data.model}</span>
-        <span>{data.leans} record-model leans</span>
+        <span>{data.count} games · pitcher-aware</span>
+        <span>{data.ml_leans ?? 0} ML · {data.total_leans ?? 0} total leans</span>
       </div>
 
       <ul className="space-y-2">
@@ -50,17 +50,38 @@ export default function GameLines({ sport }: { sport: string }) {
               g.best ? "border-warn/40" : "border-border"
             }`}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-2">
               <div className="text-sm">
-                <span className="font-medium">{g.away}</span>
-                <span className="text-muted"> ({g.away_record}) @ </span>
-                <span className="font-medium">{g.home}</span>
-                <span className="text-muted"> ({g.home_record})</span>
+                <div>
+                  <span className="font-medium">{g.away}</span>
+                  <span className="text-muted"> ({g.away_record})</span>
+                  {g.away_starter && (
+                    <span className="text-[10px] text-muted"> · {g.away_starter.name} {g.away_starter.era.toFixed(2)} ERA</span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-muted">@ </span>
+                  <span className="font-medium">{g.home}</span>
+                  <span className="text-muted"> ({g.home_record})</span>
+                  {g.home_starter && (
+                    <span className="text-[10px] text-muted"> · {g.home_starter.name} {g.home_starter.era.toFixed(2)} ERA</span>
+                  )}
+                </div>
               </div>
               {g.total != null && (
-                <span className="text-[10px] text-muted">O/U {g.total}</span>
+                <div className="text-right text-[10px] text-muted">
+                  <div>O/U {g.total}</div>
+                  {g.proj_total != null && <div>proj {g.proj_total}</div>}
+                </div>
               )}
             </div>
+
+            {g.total_lean && (
+              <div className="mt-2 rounded-md bg-warn/10 px-2 py-1 text-[11px] text-warn">
+                Total lean: {g.total_lean.pick.toUpperCase()} {g.total_lean.line}
+                {" "}(projected {g.total_lean.projected})
+              </div>
+            )}
 
             <div className="mt-2 grid grid-cols-2 gap-2">
               {g.edges.map((e) => (

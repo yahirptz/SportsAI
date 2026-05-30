@@ -15,8 +15,9 @@ odds are stored but not yet projected.
 from app.games.model import (
     GameValue,
     MoneylineEdge,
+    Starter,
     american_to_prob,
-    moneyline_value,
+    game_value,
 )
 
-__all__ = ["GameValue", "MoneylineEdge", "american_to_prob", "moneyline_value"]
+__all__ = ["GameValue", "MoneylineEdge", "Starter", "american_to_prob", "game_value"]
