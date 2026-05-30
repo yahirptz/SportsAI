@@ -50,6 +50,19 @@ export default function GameLines({ sport }: { sport: string }) {
               g.best ? "border-warn/40" : "border-border"
             }`}
           >
+            {(g.scheduled || g.form_note) && (
+              <div className="mb-1.5 flex items-center justify-between text-[10px] text-muted">
+                <span>
+                  {g.scheduled
+                    ? new Date(g.scheduled).toLocaleString([], {
+                        weekday: "short", month: "short", day: "numeric",
+                        hour: "numeric", minute: "2-digit",
+                      })
+                    : ""}
+                </span>
+                {g.form_note && <span>{g.form_note}</span>}
+              </div>
+            )}
             <div className="flex items-start justify-between gap-2">
               <div className="text-sm">
                 <div>

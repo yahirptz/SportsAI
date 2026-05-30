@@ -76,6 +76,8 @@ export interface GameValue {
   game_id: string;
   home: string;
   away: string;
+  scheduled: string | null;
+  form_note: string | null;
   home_record: string;
   away_record: string;
   home_starter: Starter | null;

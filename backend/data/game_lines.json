@@ -1,7 +1,8 @@
 {
   "_comment": "Operator-supplied GAME-LEVEL odds (moneyline + total). away/home are the book's full team names; matched to the SportRadar schedule by team nickname. Add lines via POST /api/games/lines.",
   "nba": [
-    {"away": "New York Knicks", "home": "Cleveland Cavaliers", "away_ml": 110, "home_ml": -130, "total": 212.5}
+    {"_note": "Game 7 (2026-05-30). EXAMPLE odds — replace with the real line via POST /api/games/lines.",
+     "away": "San Antonio Spurs", "home": "Oklahoma City Thunder", "away_ml": 120, "home_ml": -142, "total": 218.5}
   ],
   "mlb": [
     {"away": "Atlanta Braves", "home": "Cincinnati Reds", "away_ml": -132, "home_ml": 112, "total": 9.5},
