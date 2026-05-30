@@ -181,6 +181,37 @@ def games(sport: str):
     return build_game_values(s, _BANKROLL["balance"])
 
 
+@router.post("/floorboard", summary="FanDuel board → floor board → chosen bet")
+def floorboard(
+    sport: str = Body(...),
+    paste: str = Body(default=""),
+    mode: str = Body(default="parlay"),   # single | parlay | moneyline
+    legs: int = Body(default=3),
+    markets: list[str] | None = Body(default=None),
+):
+    """Parse a pasted FanDuel tiered board, keep tiers cleared in ALL recent
+    games (the floor plays), and assemble the bet shape you asked for."""
+    from app.board import assemble_bet, build_floor_board, parse_fanduel
+    from app.games.source import build_game_values
+
+    s = _resolve_sport(sport)
+
+    if mode == "moneyline":
+        games = build_game_values(s, _BANKROLL["balance"]).get("games", [])
+        leans = [g for g in games if g.best]
+        return {"mode": "moneyline", "picks": [g.best for g in leans] or None,
+                "games": games}
+
+    props = parse_fanduel(paste)
+    if not props:
+        raise HTTPException(status_code=400, detail="No props parsed from the pasted board.")
+    board = build_floor_board(s, props)
+    bet = assemble_bet(board, legs=1 if mode == "single" else legs,
+                       markets=markets, bankroll=_BANKROLL["balance"])
+    return {"mode": mode, "parsed_props": len(props), "board_size": len(board),
+            "board": [p.as_dict() for p in board], "bet": bet}
+
+
 @router.post("/games/lines", summary="Add or update a game line (moneyline + total)")
 def upsert_game_line(
     sport: str = Body(...),

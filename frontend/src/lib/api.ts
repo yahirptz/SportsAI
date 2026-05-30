@@ -174,6 +174,11 @@ export const api = {
   feedHealth: () => getJSON<FeedHealth>("/api/feed/health"),
   games: (sport: string) => getJSON<GamesResponse>(`/api/games/${sport}`),
   performance: () => getJSON<Performance>("/api/performance"),
+  floorboard: (sport: string, paste: string, mode: string, legs: number) =>
+    getJSON<FloorboardResponse>("/api/floorboard", {
+      method: "POST",
+      body: JSON.stringify({ sport, paste, mode, legs }),
+    }),
   gradeRun: (sport: string) =>
     getJSON<{ graded: number; skipped: number }>("/api/grade/run", {
       method: "POST",
@@ -196,4 +201,37 @@ export interface Performance {
   open_picks: number;
   overall: PerfBucket | null;
   by_sport: Record<string, PerfBucket>;
+}
+
+export interface FloorPlay {
+  player: string;
+  market: string;
+  market_label: string;
+  threshold: number;
+  line: number;
+  odds: number;
+  floor: number;
+  hit_count: number;
+  n: number;
+  hit_prob: number;
+  cushion: number;
+}
+
+export interface AssembledBet {
+  no_bet: boolean;
+  reason?: string;
+  legs: FloorPlay[];
+  leg_count?: number;
+  combined_odds?: number;
+  combined_decimal?: number;
+  model_hit_prob?: number;
+  recommended_stake?: number;
+}
+
+export interface FloorboardResponse {
+  mode: string;
+  parsed_props?: number;
+  board_size?: number;
+  board?: FloorPlay[];
+  bet?: AssembledBet;
 }

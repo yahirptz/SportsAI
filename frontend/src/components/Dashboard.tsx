@@ -7,6 +7,7 @@ import ParlayPanel from "./ParlayPanel";
 import ModelHealth from "./ModelHealth";
 import OddsPanel from "./OddsPanel";
 import GameLines from "./GameLines";
+import FloorBoard from "./FloorBoard";
 import TrackRecord from "./TrackRecord";
 
 export default function Dashboard() {
@@ -19,7 +20,7 @@ export default function Dashboard() {
   const [enriched, setEnriched] = useState(false);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"props" | "games">("props");
+  const [mode, setMode] = useState<"props" | "games" | "board">("props");
 
   useEffect(() => {
     api.sports().then(setSports).catch((e) => setError(String(e)));
@@ -126,6 +127,14 @@ export default function Dashboard() {
               >
                 Game Lines
               </button>
+              <button
+                onClick={() => setMode("board")}
+                className={`rounded-md px-3 py-1 font-medium transition ${
+                  mode === "board" ? "bg-accent/15 text-accent" : "text-muted"
+                }`}
+              >
+                Floor Board
+              </button>
             </div>
             {mode === "props" && (
               <div className="flex items-center gap-2">
@@ -139,7 +148,9 @@ export default function Dashboard() {
             )}
           </div>
 
-          {mode === "games" ? (
+          {mode === "board" ? (
+            <FloorBoard sport={sport} />
+          ) : mode === "games" ? (
             <GameLines sport={sport} />
           ) : picks.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted">
