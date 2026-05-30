@@ -168,6 +168,26 @@ def feed_health():
     return {"active_provider": get_provider().name, "feeds": HEALTH_REGISTRY.snapshot()}
 
 
+@router.post("/games/lines/import", summary="Paste FanDuel game lines (spread/ML/total)")
+def import_game_lines(sport: str = Body(...), paste: str = Body(...)):
+    """Parse a pasted FanDuel game-line block and save the moneylines + totals."""
+    from app.board import parse_fanduel_games
+
+    s = _resolve_sport(sport)
+    parsed = parse_fanduel_games(paste)
+    if not parsed:
+        raise HTTPException(status_code=400, detail="No game lines parsed from the paste.")
+    path = Path("data/game_lines.json")
+    data = json.loads(path.read_text()) if path.exists() else {}
+    rows = data.setdefault(s.value, [])
+    for g in parsed:
+        rows[:] = [r for r in rows if not (r.get("away") == g["away"] and r.get("home") == g["home"])]
+        rows.append(g)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2))
+    return {"ok": True, "imported": len(parsed), "games": parsed}
+
+
 @router.get("/games/{sport}", summary="Game-line value model (moneyline)")
 def games(sport: str):
     """Season-record moneyline value detector vs operator-supplied game odds.

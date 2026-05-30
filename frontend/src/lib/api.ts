@@ -174,6 +174,11 @@ export const api = {
   feedHealth: () => getJSON<FeedHealth>("/api/feed/health"),
   games: (sport: string) => getJSON<GamesResponse>(`/api/games/${sport}`),
   performance: () => getJSON<Performance>("/api/performance"),
+  importGameLines: (sport: string, paste: string) =>
+    getJSON<{ ok: boolean; imported: number }>("/api/games/lines/import", {
+      method: "POST",
+      body: JSON.stringify({ sport, paste }),
+    }),
   floorboard: (sport: string, paste: string, mode: string, legs: number) =>
     getJSON<FloorboardResponse>("/api/floorboard", {
       method: "POST",

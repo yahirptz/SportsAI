@@ -12,6 +12,19 @@ export default function FloorBoard({ sport }: { sport: string }) {
   const [res, setRes] = useState<FloorboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [glReload, setGlReload] = useState(0);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  const importLines = async () => {
+    setImportMsg(null);
+    try {
+      const r = await api.importGameLines(sport, paste);
+      setImportMsg(`Imported ${r.imported} game line(s).`);
+      setGlReload((k) => k + 1);
+    } catch (e) {
+      setImportMsg(String(e));
+    }
+  };
 
   const run = async () => {
     setLoading(true);
@@ -43,10 +56,24 @@ export default function FloorBoard({ sport }: { sport: string }) {
           />
         )}
         {mode === "moneyline" && (
-          <p className="mt-3 text-[11px] text-muted">
-            Moneyline uses the game model below — no paste needed. Enter the game line via the
-            Game Lines tab or POST /api/games/lines.
-          </p>
+          <div className="mt-3">
+            <textarea
+              value={paste}
+              onChange={(e) => setPaste(e.target.value)}
+              placeholder="Paste FanDuel's game line (Spread / Money / Total block) here, then Import."
+              className="h-28 w-full rounded-lg border border-border bg-background p-2 font-mono text-[11px]"
+            />
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                onClick={importLines}
+                disabled={!paste.trim()}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-background disabled:opacity-50"
+              >
+                Import game line
+              </button>
+              {importMsg && <span className="text-[11px] text-muted">{importMsg}</span>}
+            </div>
+          </div>
         )}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <div className="flex gap-1 rounded-lg border border-border bg-surface-2 p-0.5 text-xs">
@@ -85,7 +112,7 @@ export default function FloorBoard({ sport }: { sport: string }) {
         {error && <div className="mt-2 text-xs text-danger">{error}</div>}
       </div>
 
-      {mode === "moneyline" && <GameLines sport={sport} />}
+      {mode === "moneyline" && <GameLines key={glReload} sport={sport} />}
 
       {bet && !bet.no_bet && (
         <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">

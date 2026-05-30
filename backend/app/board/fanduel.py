@@ -91,3 +91,57 @@ def parse_fanduel(text: str) -> list[ParsedProp]:
 
     flush(None)  # any trailing card without a parsed timestamp
     return props
+
+
+_NUM_RE = re.compile(r"^[+-]\d+(\.\d+)?$")
+_OU_RE = re.compile(r"^[OU]\s+([\d.]+)$")
+_GAME_NOISE = {"spread", "money", "total", "stats", "more wagers", "show more", ""}
+
+
+def parse_fanduel_games(text: str) -> list[dict]:
+    """Parse FanDuel's game-line block (spread / moneyline / total).
+
+    Per game the columns come as: away spread, away spread-odds, away ML,
+    total(O), over-odds, home spread, home spread-odds, home ML, total(U),
+    under-odds — preceded by the two team names and ended by a time stamp.
+    Returns dicts with away/home + moneylines + total.
+    """
+    games: list[dict] = []
+    teams: list[str] = []
+    nums: list[str] = []
+
+    def flush() -> None:
+        # Need 2 teams and the full 10-token numeric sequence.
+        if len(teams) >= 2 and len(nums) >= 8:
+            total = None
+            for tok in nums:
+                m = _OU_RE.match(tok)
+                if m:
+                    total = float(m.group(1))
+                    break
+            try:
+                away_ml, home_ml = int(float(nums[2])), int(float(nums[7]))
+                # Teams are the two alpha lines immediately before the numbers
+                # (skips page headers like "NBA").
+                games.append({"away": teams[-2], "home": teams[-1],
+                              "away_ml": away_ml, "home_ml": home_ml, "total": total})
+            except (ValueError, IndexError):
+                pass
+        teams.clear()
+        nums.clear()
+
+    for raw in text.splitlines():
+        s = raw.strip()
+        low = s.lower()
+        if not s or low in _GAME_NOISE:
+            continue
+        if _TIME_RE.match(s):
+            flush()
+            continue
+        if _NUM_RE.match(s) or _OU_RE.match(s):
+            nums.append(s)
+        elif not s.startswith("+") and not s.startswith("-"):
+            teams.append(s)  # a team name
+    flush()
+    return games
+

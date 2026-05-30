@@ -7,6 +7,9 @@ moneyline, or an N-leg parlay).
 """
 
 from app.board.builder import FloorPlay, assemble_bet, build_floor_board
-from app.board.fanduel import ParsedProp, parse_fanduel
+from app.board.fanduel import ParsedProp, parse_fanduel, parse_fanduel_games
 
-__all__ = ["ParsedProp", "parse_fanduel", "FloorPlay", "build_floor_board", "assemble_bet"]
+__all__ = [
+    "ParsedProp", "parse_fanduel", "parse_fanduel_games",
+    "FloorPlay", "build_floor_board", "assemble_bet",
+]
