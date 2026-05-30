@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api, type FloorboardResponse } from "@/lib/api";
+import GameLines from "./GameLines";
 
 // Paste FanDuel's tiered board → floor board → pick the bet shape you want.
 export default function FloorBoard({ sport }: { sport: string }) {
@@ -33,12 +34,20 @@ export default function FloorBoard({ sport }: { sport: string }) {
           Paste FanDuel&apos;s player-prop board. The floor model keeps only tiers a player
           cleared in <em>every</em> recent game, then builds the bet you choose.
         </p>
-        <textarea
-          value={paste}
-          onChange={(e) => setPaste(e.target.value)}
-          placeholder="Paste FanDuel props here (To Score 20+ Points, 2+ Made Threes, …)"
-          className="mt-3 h-28 w-full rounded-lg border border-border bg-background p-2 font-mono text-[11px]"
-        />
+        {mode !== "moneyline" && (
+          <textarea
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            placeholder="Paste FanDuel props here (To Score 20+ Points, 2+ Made Threes, …)"
+            className="mt-3 h-28 w-full rounded-lg border border-border bg-background p-2 font-mono text-[11px]"
+          />
+        )}
+        {mode === "moneyline" && (
+          <p className="mt-3 text-[11px] text-muted">
+            Moneyline uses the game model below — no paste needed. Enter the game line via the
+            Game Lines tab or POST /api/games/lines.
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <div className="flex gap-1 rounded-lg border border-border bg-surface-2 p-0.5 text-xs">
             {(["single", "parlay", "moneyline"] as const).map((m) => (
@@ -63,16 +72,20 @@ export default function FloorBoard({ sport }: { sport: string }) {
               />
             </label>
           )}
-          <button
-            onClick={run}
-            disabled={loading || (mode !== "moneyline" && !paste.trim())}
-            className="ml-auto rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-background disabled:opacity-50"
-          >
-            {loading ? "Building…" : "Build"}
-          </button>
+          {mode !== "moneyline" && (
+            <button
+              onClick={run}
+              disabled={loading || !paste.trim()}
+              className="ml-auto rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-background disabled:opacity-50"
+            >
+              {loading ? "Building…" : "Build"}
+            </button>
+          )}
         </div>
         {error && <div className="mt-2 text-xs text-danger">{error}</div>}
       </div>
+
+      {mode === "moneyline" && <GameLines sport={sport} />}
 
       {bet && !bet.no_bet && (
         <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
