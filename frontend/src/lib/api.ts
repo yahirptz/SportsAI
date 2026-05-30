@@ -90,6 +90,7 @@ export interface GameValue {
   total_lean: TotalLean | null;
   best: MoneylineEdge | null;
   edges: MoneylineEdge[];
+  injury_notes: string[];
   note: string | null;
 }
 
@@ -179,10 +180,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ sport, paste }),
     }),
-  floorboard: (sport: string, paste: string, mode: string, legs: number) =>
+  floorboard: (sport: string, paste: string, mode: string, legs: number, minCushion = 0) =>
     getJSON<FloorboardResponse>("/api/floorboard", {
       method: "POST",
-      body: JSON.stringify({ sport, paste, mode, legs }),
+      body: JSON.stringify({ sport, paste, mode, legs, min_cushion: minCushion }),
     }),
   gradeRun: (sport: string) =>
     getJSON<{ graded: number; skipped: number }>("/api/grade/run", {

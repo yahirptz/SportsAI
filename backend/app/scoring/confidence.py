@@ -83,23 +83,27 @@ def score_confidence(result: FloorResult, enrichment: EnrichmentContext) -> Conf
 
     floor_gap = _floor_gap_score(result.floor, result.line)
     consistency = _consistency_score(result)
-    # Clean Perplexity check (no injury flag) is full marks; a flag would have
-    # already disqualified the pick upstream, so this rewards a verified-clean read.
     perplexity = 0.0 if enrichment.injury_flag else 1.0
-    # Reddit sentiment only helps when it agrees with the model (positive); it
-    # never drags an eligible pick down (SRS §08: sentiment never overrides).
     reddit = max(0.0, enrichment.reddit_sentiment)
     public_fade = _public_fade_score(enrichment)
     rlm = 1.0 if enrichment.reverse_line_movement else 0.0
 
-    contributions = {
-        "floor_gap": floor_gap * WEIGHTS["floor_gap"],
-        "consistency": consistency * WEIGHTS["consistency"],
-        "perplexity": perplexity * WEIGHTS["perplexity"],
-        "reddit": reddit * WEIGHTS["reddit"],
-        "public_fade": public_fade * WEIGHTS["public_fade"],
-        "rlm": rlm * WEIGHTS["rlm"],
-    }
+    raw = {"floor_gap": floor_gap, "consistency": consistency, "perplexity": perplexity,
+           "reddit": reddit, "public_fade": public_fade, "rlm": rlm}
+
+    # Only score signals we actually have. Public % and reverse-line-movement need
+    # a market-data feed we don't have yet, so when absent we redistribute their
+    # weight across the available signals instead of scoring them as zero — that
+    # way missing data doesn't cap the score (it's "confidence given what we see").
+    available = {"floor_gap", "consistency", "perplexity", "reddit"}
+    if enrichment.public_bet_pct is not None:
+        available.add("public_fade")
+    if enrichment.reverse_line_movement:
+        available.add("rlm")
+
+    avail_total = sum(WEIGHTS[k] for k in available)
+    eff = {k: WEIGHTS[k] / avail_total for k in available}  # renormalised to sum 1
+    contributions = {k: raw[k] * eff.get(k, 0.0) for k in raw}
     total = round(sum(contributions.values()) * 100, 1)
 
     return ConfidenceBreakdown(

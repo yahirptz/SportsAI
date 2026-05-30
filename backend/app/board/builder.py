@@ -117,10 +117,16 @@ def _decimal_to_american(decimal: float) -> int:
 
 
 def assemble_bet(
-    plays: list[FloorPlay], *, legs: int, markets: list[str] | None = None, bankroll: float = 1000.0
+    plays: list[FloorPlay], *, legs: int, markets: list[str] | None = None,
+    min_cushion: float = 0.0, bankroll: float = 1000.0
 ) -> dict:
-    """Build a single (legs=1) or N-leg parlay from the ranked floor board."""
-    pool = [p for p in plays if not markets or p.market in markets]
+    """Build a single (legs=1) or N-leg parlay from the ranked floor board.
+
+    ``min_cushion`` keeps only legs whose floor clears the line by at least that
+    much — raises reliability by dropping thin legs (e.g. a 20-pt line a player's
+    worst game hit exactly).
+    """
+    pool = [p for p in plays if (not markets or p.market in markets) and p.cushion >= min_cushion]
     # one leg per player to avoid stacking the same player
     seen: set[str] = set()
     unique = []

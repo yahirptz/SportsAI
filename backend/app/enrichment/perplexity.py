@@ -50,6 +50,34 @@ class PerplexityEnricher:
     def injury_news(self, player_name: str, sport_label: str) -> InjuryReport:
         return self._breaker.call(lambda: self._query(player_name, sport_label))
 
+    def team_availability(self, team_name: str, sport_label: str) -> dict:
+        """Key-player availability for a team's next game (game-model injury check)."""
+        try:
+            return self._breaker.call(lambda: self._team_query(team_name, sport_label))
+        except Exception:
+            return {"flag": False, "note": ""}
+
+    def _team_query(self, team_name: str, sport_label: str) -> dict:
+        resp = self._client.post(
+            _ENDPOINT,
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": (
+                        "You are an injury desk. In ONE short sentence, name any key/starting "
+                        "players for the given team who are OUT, DOUBTFUL, or QUESTIONABLE for "
+                        "their next game. Start with 'FLAG:' if any key player is affected, else "
+                        "start with 'CLEAR:'.")},
+                    {"role": "user", "content": f"{team_name} — {sport_label}. Key injuries for next game?"},
+                ],
+                "temperature": 0,
+            },
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"].strip()
+        return {"flag": content.upper().startswith("FLAG"), "note": content[:200]}
+
     def _query(self, player_name: str, sport_label: str) -> InjuryReport:
         resp = self._client.post(
             _ENDPOINT,

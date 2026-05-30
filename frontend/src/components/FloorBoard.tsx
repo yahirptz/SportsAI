@@ -9,6 +9,7 @@ export default function FloorBoard({ sport }: { sport: string }) {
   const [paste, setPaste] = useState("");
   const [mode, setMode] = useState<"single" | "parlay" | "moneyline">("parlay");
   const [legs, setLegs] = useState(3);
+  const [minCushion, setMinCushion] = useState(0);
   const [res, setRes] = useState<FloorboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export default function FloorBoard({ sport }: { sport: string }) {
     setLoading(true);
     setError(null);
     try {
-      setRes(await api.floorboard(sport, paste, mode, legs));
+      setRes(await api.floorboard(sport, paste, mode, legs, minCushion));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -95,6 +96,16 @@ export default function FloorBoard({ sport }: { sport: string }) {
               <input
                 type="number" min={2} max={8} value={legs}
                 onChange={(e) => setLegs(Math.max(2, Math.min(8, +e.target.value)))}
+                className="w-14 rounded border border-border bg-background px-1.5 py-1 text-right"
+              />
+            </label>
+          )}
+          {mode !== "moneyline" && (
+            <label className="flex items-center gap-2 text-xs text-muted" title="Only legs whose floor clears the line by at least this much">
+              Min cushion
+              <input
+                type="number" min={0} step={0.5} value={minCushion}
+                onChange={(e) => setMinCushion(Math.max(0, +e.target.value))}
                 className="w-14 rounded border border-border bg-background px-1.5 py-1 text-right"
               />
             </label>

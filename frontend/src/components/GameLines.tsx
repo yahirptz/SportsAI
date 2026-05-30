@@ -125,6 +125,13 @@ export default function GameLines({ sport }: { sport: string }) {
                 </div>
               ))}
             </div>
+            {g.injury_notes && g.injury_notes.length > 0 && (
+              <div className="mt-2 space-y-0.5">
+                {g.injury_notes.map((n, i) => (
+                  <div key={i} className="text-[10px] text-warn">🏥 {n}</div>
+                ))}
+              </div>
+            )}
             {g.note && <div className="mt-1.5 text-[10px] text-muted">{g.note}</div>}
           </li>
         ))}

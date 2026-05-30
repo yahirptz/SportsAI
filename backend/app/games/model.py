@@ -111,6 +111,7 @@ class GameValue(BaseModel):
     total_lean: TotalLean | None = None
     best: MoneylineEdge | None = None
     edges: list[MoneylineEdge] = Field(default_factory=list)
+    injury_notes: list[str] = Field(default_factory=list)
     note: str | None = None
 
 

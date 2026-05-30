@@ -208,6 +208,7 @@ def floorboard(
     mode: str = Body(default="parlay"),   # single | parlay | moneyline
     legs: int = Body(default=3),
     markets: list[str] | None = Body(default=None),
+    min_cushion: float = Body(default=0.0),
 ):
     """Parse a pasted FanDuel tiered board, keep tiers cleared in ALL recent
     games (the floor plays), and assemble the bet shape you asked for."""
@@ -226,8 +227,8 @@ def floorboard(
     if not props:
         raise HTTPException(status_code=400, detail="No props parsed from the pasted board.")
     board = build_floor_board(s, props)
-    bet = assemble_bet(board, legs=1 if mode == "single" else legs,
-                       markets=markets, bankroll=_BANKROLL["balance"])
+    bet = assemble_bet(board, legs=1 if mode == "single" else legs, markets=markets,
+                       min_cushion=min_cushion, bankroll=_BANKROLL["balance"])
     return {"mode": mode, "parsed_props": len(props), "board_size": len(board),
             "board": [p.as_dict() for p in board], "bet": bet}
 

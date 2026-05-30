@@ -67,6 +67,20 @@ class EnrichmentService:
         self._cache.set(key, result)
         return PlayerEnrichment(**result)
 
+    # -- team-level injury check (game model) -------------------------------
+
+    def team_news(self, team_name: str, sport_label: str) -> dict:
+        """{'flag': bool, 'note': str} — key-player availability, cached per day."""
+        if not self.enabled or self._perplexity is None:
+            return {"flag": False, "note": ""}
+        key = f"team:{sport_label}:{team_name}:{date.today()}"
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        result = self._perplexity.team_availability(team_name, sport_label)
+        self._cache.set(key, result)
+        return result
+
     # -- reasoning ----------------------------------------------------------
 
     def reason(self, facts: str) -> str:

@@ -80,6 +80,7 @@ def build_game_values(sport: Sport, bankroll: float) -> dict:
     else:
         return {"sport": sport.value, "games": [], "note": "Game-line model not built for this sport."}
 
+    _attach_injuries(result["games"], sport)
     result["games"].sort(key=lambda v: (v.best.edge if v.best else -1), reverse=True)
     return {
         "sport": sport.value,
@@ -90,6 +91,22 @@ def build_game_values(sport: Sport, bankroll: float) -> dict:
         "warning": result["warning"],
         "games": result["games"],
     }
+
+
+def _attach_injuries(games: list[GameValue], sport: Sport) -> None:
+    """Add a key-player injury note per team (Perplexity), if enrichment is on."""
+    from app.enrichment import get_enrichment_service
+    from app.sports.registry import get_config
+
+    service = get_enrichment_service()
+    if not service.enabled:
+        return
+    label = get_config(sport).label
+    for gv in games:
+        for team in (gv.away, gv.home):
+            news = service.team_news(team, label)
+            if news.get("note"):
+                gv.injury_notes.append(f"{team}: {news['note']}")
 
 
 def _build_mlb(stats: SportRadarStats, odds: list[dict], bankroll: float) -> dict:
