@@ -6,6 +6,7 @@ import PickCard from "./PickCard";
 import ParlayPanel from "./ParlayPanel";
 import ModelHealth from "./ModelHealth";
 import OddsPanel from "./OddsPanel";
+import GameLines from "./GameLines";
 
 export default function Dashboard() {
   const [sports, setSports] = useState<SportInfo[]>([]);
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [enriched, setEnriched] = useState(false);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"props" | "games">("props");
 
   useEffect(() => {
     api.sports().then(setSports).catch((e) => setError(String(e)));
@@ -103,22 +105,42 @@ export default function Dashboard() {
 
       {/* Main grid */}
       <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* Agent Feed */}
+        {/* Main column: Player Props (floor model) or Game Lines (value model) */}
         <section className="lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">
-              Agent Feed
-            </h2>
-            <div className="flex items-center gap-2">
-              {enriched && (
-                <span className="rounded border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
-                  enriched
-                </span>
-              )}
-              <span className="text-xs text-muted">{picks.length} eligible</span>
+            <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5 text-xs">
+              <button
+                onClick={() => setMode("props")}
+                className={`rounded-md px-3 py-1 font-medium transition ${
+                  mode === "props" ? "bg-accent/15 text-accent" : "text-muted"
+                }`}
+              >
+                Player Props
+              </button>
+              <button
+                onClick={() => setMode("games")}
+                className={`rounded-md px-3 py-1 font-medium transition ${
+                  mode === "games" ? "bg-warn/15 text-warn" : "text-muted"
+                }`}
+              >
+                Game Lines
+              </button>
             </div>
+            {mode === "props" && (
+              <div className="flex items-center gap-2">
+                {enriched && (
+                  <span className="rounded border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
+                    enriched
+                  </span>
+                )}
+                <span className="text-xs text-muted">{picks.length} eligible</span>
+              </div>
+            )}
           </div>
-          {picks.length === 0 ? (
+
+          {mode === "games" ? (
+            <GameLines sport={sport} />
+          ) : picks.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted">
               No eligible picks — every prop failed the floor model.
             </div>

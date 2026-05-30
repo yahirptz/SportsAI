@@ -49,6 +49,38 @@ export interface UnpricedMarket {
   floor_hint: number;
 }
 
+export interface MoneylineEdge {
+  side: string;
+  team: string;
+  odds: number;
+  model_prob: number;
+  implied_prob: number;
+  edge: number;
+  kelly_stake: number;
+}
+
+export interface GameValue {
+  game_id: string;
+  home: string;
+  away: string;
+  home_record: string;
+  away_record: string;
+  total: number | null;
+  best: MoneylineEdge | null;
+  edges: MoneylineEdge[];
+  note: string | null;
+}
+
+export interface GamesResponse {
+  sport: string;
+  count?: number;
+  leans?: number;
+  model?: string;
+  warning?: string;
+  note?: string;
+  games: GameValue[];
+}
+
 export interface Parlay {
   id: string;
   sport: string;
@@ -117,4 +149,5 @@ export const api = {
     }),
   bankroll: () => getJSON<{ balance: number; risk_profile: string }>("/api/bankroll"),
   feedHealth: () => getJSON<FeedHealth>("/api/feed/health"),
+  games: (sport: string) => getJSON<GamesResponse>(`/api/games/${sport}`),
 };

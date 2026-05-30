@@ -158,6 +158,19 @@ def feed_health():
     return {"active_provider": get_provider().name, "feeds": HEALTH_REGISTRY.snapshot()}
 
 
+@router.get("/games/{sport}", summary="Game-line value model (moneyline)")
+def games(sport: str):
+    """Season-record moneyline value detector vs operator-supplied game odds.
+
+    Distinct from the player-prop floor model: this bets game outcomes, uses
+    team records (not last-N floors), and only flags positive-edge sides.
+    """
+    from app.games.source import build_game_values
+
+    s = _resolve_sport(sport)
+    return build_game_values(s, _BANKROLL["balance"])
+
+
 # --- Odds workflow (operator-supplied lines bridge, SRS §01) ----------------
 
 
