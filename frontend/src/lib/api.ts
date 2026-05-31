@@ -174,6 +174,12 @@ export const api = {
   bankroll: () => getJSON<{ balance: number; risk_profile: string }>("/api/bankroll"),
   feedHealth: () => getJSON<FeedHealth>("/api/feed/health"),
   games: (sport: string) => getJSON<GamesResponse>(`/api/games/${sport}`),
+  moneylineForm: (sport: string) => getJSON<MoneylineForm>(`/api/moneyline/form/${sport}`),
+  moneylinePredict: (sport: string, homeOdds: number, awayOdds: number) =>
+    getJSON<MoneylinePrediction>("/api/moneyline/predict", {
+      method: "POST",
+      body: JSON.stringify({ sport, home_odds: homeOdds, away_odds: awayOdds }),
+    }),
   assistant: (messages: ChatMessage[], sport: string, board: string) =>
     getJSON<AssistantResponse>("/api/assistant", {
       method: "POST",
@@ -254,6 +260,42 @@ export interface AssembledBet {
   combined_decimal?: number;
   model_hit_prob?: number;
   recommended_stake?: number;
+}
+
+export interface TeamFormData {
+  team: string;
+  form_score: number;
+  last5: string[];
+  avg_margin: number;
+  points_allowed_floor: number | null;
+  home_record: string;
+  away_record: string;
+  rest_days: number | null;
+  pace: number | null;
+}
+
+export interface MoneylineForm {
+  sport: string;
+  game: { home: string; away: string; scheduled: string | null } | null;
+  home?: TeamFormData;
+  away?: TeamFormData;
+  note?: string;
+}
+
+export interface MoneylinePrediction {
+  sport: string;
+  home_team?: string;
+  away_team?: string;
+  home_form_score?: number;
+  away_form_score?: number;
+  home_win_prob?: number;
+  away_win_prob?: number;
+  lean: string;
+  confidence: number;
+  expected_value?: number;
+  kelly_fraction?: number;
+  honest_note?: string;
+  note?: string;
 }
 
 export interface ChatMessage {

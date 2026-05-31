@@ -185,6 +185,25 @@ def _player_name(p: dict) -> str:
     return p.get("full_name") or f"{p.get('preferred_name', '')} {p.get('last_name', '')}".strip()
 
 
+def team_rest_days(window: list[dict], team_id: str, sport: Sport, ref_date: str) -> int | None:
+    """Days since this team's last completed game before ``ref_date`` (fatigue).
+
+    Adapted from kyleskom's Add_Days_Rest: clamp to [0, 9]; returns None if there
+    is no prior game in the window.
+    """
+    if not ref_date:
+        return None
+    prior = sorted(
+        (g["_date"] for g in window
+         if g.get("status") == "closed" and team_id in _team_ids(g, sport) and g["_date"] < ref_date),
+        reverse=True,
+    )
+    if not prior:
+        return None
+    last, ref = date.fromisoformat(prior[0]), date.fromisoformat(ref_date)
+    return max(0, min((ref - last).days, 9))
+
+
 def _player_lines(summary: dict, team_id: str, sport: Sport) -> list[dict]:
     # MLB nests teams under a top-level "game" key; NBA keeps them at the root.
     root = summary.get("game", summary) if sport is Sport.MLB else summary
@@ -282,6 +301,7 @@ class SportRadarFeedProvider:
             for team_id in _team_ids(game, sport):
                 if not team_id:
                     continue
+                rest = team_rest_days(window, team_id, sport, game.get("_date", ""))
                 logs_by_player = self._team_last_n_logs(
                     sport, client, window, team_id, config.sample_window
                 )
@@ -303,7 +323,7 @@ class SportRadarFeedProvider:
                             PropInput(
                                 game_id=game["id"], player_id=pid, player_name=name,
                                 stat_key=stat_key, line=line, odds=odds, logs=logs,
-                                enrichment=EnrichmentContext(),
+                                enrichment=EnrichmentContext(rest_days=rest),
                             )
                         )
         return props

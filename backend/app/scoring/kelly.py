@@ -22,6 +22,22 @@ def american_to_decimal(odds: int) -> float:
     return 1 + 100 / abs(odds)
 
 
+def payout(odds: int) -> float:
+    """Profit on a $100 stake at American ``odds`` (per kyleskom's EV utility)."""
+    return odds if odds > 0 else (100 / -odds) * 100
+
+
+def expected_value(p_win: float, odds: int) -> float:
+    """Expected profit per $100 staked. Positive = +EV at this price.
+
+    Adapted from NBA-Machine-Learning-Sports-Betting Expected_Value.py:
+        EV = Pwin * payout(odds) - (1 - Pwin) * 100
+    ``p_win`` is a probability in [0, 1].
+    """
+    p = max(0.0, min(1.0, p_win))
+    return round(p * payout(odds) - (1 - p) * 100, 2)
+
+
 def kelly_stake(
     confidence: float,
     bankroll: float,

@@ -202,6 +202,26 @@ def import_game_lines(sport: str = Body(...), paste: str = Body(...)):
     return {"ok": True, "imported": len(parsed), "games": parsed}
 
 
+@router.get("/moneyline/form/{sport}", summary="Team form model (last-5, margins, rest, pace)")
+def moneyline_form(sport: str):
+    from app.moneyline import build_form
+
+    return build_form(_resolve_sport(sport))
+
+
+@router.post("/moneyline/predict", summary="Form-model moneyline prediction + EV + Kelly")
+def moneyline_predict(
+    sport: str = Body(default="nba"),
+    home_odds: int = Body(...),
+    away_odds: int = Body(...),
+):
+    """Win probability from OUR form model (never a black box), then EV + Kelly
+    on the supplied odds."""
+    from app.moneyline import predict_moneyline
+
+    return predict_moneyline(_resolve_sport(sport), home_odds, away_odds, _BANKROLL["balance"])
+
+
 @router.get("/games/{sport}", summary="Game-line value model (moneyline)")
 def games(sport: str):
     """Season-record moneyline value detector vs operator-supplied game odds.

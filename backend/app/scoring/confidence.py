@@ -29,6 +29,9 @@ WEIGHTS = {
     "rlm": 0.05,
 }
 
+# Haircut applied when a player is on a back-to-back / < 2 days rest.
+REST_FATIGUE_DISCOUNT = 0.90
+
 
 class ConfidenceBreakdown(BaseModel):
     """Per-factor contributions, useful for the Agent Feed reasoning summary."""
@@ -104,7 +107,13 @@ def score_confidence(result: FloorResult, enrichment: EnrichmentContext) -> Conf
     avail_total = sum(WEIGHTS[k] for k in available)
     eff = {k: WEIGHTS[k] / avail_total for k in available}  # renormalised to sum 1
     contributions = {k: raw[k] * eff.get(k, 0.0) for k in raw}
-    total = round(sum(contributions.values()) * 100, 1)
+    total = sum(contributions.values()) * 100
+
+    # Fatigue: a player on a back-to-back / < 2 days rest is a lower-confidence
+    # leg (days-rest logic adapted from kyleskom's Add_Days_Rest).
+    if enrichment.rest_days is not None and enrichment.rest_days < 2:
+        total *= REST_FATIGUE_DISCOUNT
+    total = round(total, 1)
 
     return ConfidenceBreakdown(
         floor_gap=round(contributions["floor_gap"] * 100, 1),

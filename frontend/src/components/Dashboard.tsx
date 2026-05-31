@@ -5,6 +5,7 @@ import { api, type SportInfo } from "@/lib/api";
 import Assistant from "./Assistant";
 import TrackRecord from "./TrackRecord";
 import Insights from "./Insights";
+import OddsPanel from "./OddsPanel";
 
 export default function Dashboard() {
   const [sports, setSports] = useState<SportInfo[]>([]);
@@ -52,6 +53,10 @@ export default function Dashboard() {
       <main className="mt-5">
         <Assistant key={sport} sport={sport} />
       </main>
+
+      <div className="mt-6">
+        <OddsPanel sport={sport} />
+      </div>
 
       <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <TrackRecord sport={sport} />

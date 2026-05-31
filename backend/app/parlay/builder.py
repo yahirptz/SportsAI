@@ -50,6 +50,8 @@ def build_parlay(
     bankroll: float,
     matrix: CorrelationMatrix | None = None,
     legs_required: int | None = None,
+    include_moneyline_anchor: bool = False,
+    moneyline_signal: dict | None = None,
 ) -> Parlay:
     """Assemble the highest-confidence non-negatively-correlated parlay.
 
@@ -108,6 +110,21 @@ def build_parlay(
     f_star = max(0.0, (b * combined_p - (1 - combined_p)) / b) if b > 0 else 0.0
     stake = round(min(bankroll * settings.kelly_fraction * f_star, bankroll * settings.max_stake_pct), 2)
 
+    reason = f"{legs_required}-leg parlay built at decimal odds {round(decimal, 2)}."
+
+    # Optional moneyline anchor: only when explicitly enabled and a confident
+    # lean exists. Default-off keeps existing SGP behaviour untouched.
+    if include_moneyline_anchor and moneyline_signal:
+        lean = moneyline_signal.get("lean")
+        conf = moneyline_signal.get("confidence", 0)
+        if lean and lean != "no lean" and conf > 65:
+            legs.insert(0, ParlayLeg(
+                pick_id="ml-anchor", player_name=lean, market_label="Moneyline",
+                floor=0.0, line=0.0, confidence=conf,
+                reasoning="Anchor leg — form-model moneyline lean.",
+            ))
+            reason = f"{lean} ML anchor + " + reason
+
     return Parlay(
         id=str(uuid.uuid4()),
         sport=sport,
@@ -116,5 +133,5 @@ def build_parlay(
         combined_confidence=round(combined_p * 100, 1),
         recommended_stake=stake,
         no_bet=False,
-        reason=f"{legs_required}-leg parlay built at decimal odds {round(decimal, 2)}.",
+        reason=reason,
     )

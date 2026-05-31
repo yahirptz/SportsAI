@@ -1,107 +1,94 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, type UnpricedMarket } from "@/lib/api";
+import { api, type MoneylineForm, type MoneylinePrediction } from "@/lib/api";
 
-// Operator-supplied odds workflow (SRS §01 bridge). Lists slate markets that
-// still need a line and lets you add one inline; the next slate prices it.
-export default function OddsPanel({
-  sport,
-  onPriced,
-}: {
-  sport: string;
-  onPriced: () => void;
-}) {
-  const [unpriced, setUnpriced] = useState<UnpricedMarket[]>([]);
-  const [busy, setBusy] = useState<string | null>(null);
+// Moneyline panel — team form scores + a form-model prediction (win prob, EV,
+// Kelly) once you enter the odds. Win prob comes only from our form model.
+export default function OddsPanel({ sport }: { sport: string }) {
+  const [form, setForm] = useState<MoneylineForm | null>(null);
+  const [pred, setPred] = useState<MoneylinePrediction | null>(null);
+  const [homeOdds, setHomeOdds] = useState(-130);
+  const [awayOdds, setAwayOdds] = useState(110);
+  const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      setUnpriced((await api.unpriced(sport)).unpriced);
-    } catch {
-      setUnpriced([]);
-    }
+  const loadForm = useCallback(() => {
+    setPred(null);
+    api.moneylineForm(sport).then(setForm).catch(() => setForm(null));
   }, [sport]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    loadForm();
+  }, [loadForm]);
 
-  const addLine = async (m: UnpricedMarket, line: number) => {
-    const key = `${m.player}-${m.market}`;
-    setBusy(key);
+  const predict = async () => {
+    setLoading(true);
     try {
-      await api.addLine(sport, m.player, m.market, line, -110);
-      await load();
-      onPriced();
+      setPred(await api.moneylinePredict(sport, homeOdds, awayOdds));
     } finally {
-      setBusy(null);
+      setLoading(false);
     }
   };
 
+  const noGame = !form?.home || !form?.away;
+
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">
-          Unpriced Markets
-        </h2>
-        <span className="text-xs text-muted">{unpriced.length}</span>
-      </div>
-      <p className="mt-1 text-[10px] text-muted">
-        Players on the slate with no line yet. Add your book&apos;s line to price them.
-      </p>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Moneyline (form model)</h2>
 
-      {unpriced.length === 0 ? (
-        <p className="mt-3 text-xs text-muted">All slate markets are priced. ✓</p>
+      {noGame ? (
+        <p className="mt-3 text-xs text-muted">{form?.note ?? "No upcoming game for this sport."}</p>
       ) : (
-        <ul className="mt-3 max-h-72 space-y-1.5 overflow-y-auto pr-1">
-          {unpriced.slice(0, 30).map((m) => (
-            <UnpricedRow
-              key={`${m.player}-${m.market}`}
-              market={m}
-              busy={busy === `${m.player}-${m.market}`}
-              onAdd={(line) => addLine(m, line)}
-            />
-          ))}
-        </ul>
+        <>
+          <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+            {[form.away, form.home].map((t, i) => (
+              <div key={i} className="rounded-md bg-surface-2 p-2">
+                <div className="flex justify-between">
+                  <span className="font-medium">{t!.team}</span>
+                  <span className="tabular-nums text-accent">{t!.form_score}</span>
+                </div>
+                <div className="mt-1 text-[10px] text-muted">
+                  {t!.last5.join(" ")} · margin {t!.avg_margin > 0 ? "+" : ""}{t!.avg_margin}
+                  {t!.rest_days != null && ` · ${t!.rest_days}d rest`}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <label className="flex items-center gap-1 text-muted">
+              Away ML
+              <input type="number" value={awayOdds} onChange={(e) => setAwayOdds(+e.target.value)}
+                className="w-16 rounded border border-border bg-background px-1.5 py-1 text-right" />
+            </label>
+            <label className="flex items-center gap-1 text-muted">
+              Home ML
+              <input type="number" value={homeOdds} onChange={(e) => setHomeOdds(+e.target.value)}
+                className="w-16 rounded border border-border bg-background px-1.5 py-1 text-right" />
+            </label>
+            <button onClick={predict} disabled={loading}
+              className="ml-auto rounded-lg bg-accent px-3 py-1.5 font-semibold text-background disabled:opacity-50">
+              {loading ? "…" : "Predict"}
+            </button>
+          </div>
+
+          {pred && (
+            <div className="mt-3 rounded-lg border border-accent/30 bg-accent/5 p-3 text-xs">
+              <div className="flex justify-between">
+                <span>{pred.away_team} {pred.away_win_prob != null && `${(pred.away_win_prob * 100).toFixed(0)}%`}</span>
+                <span>{pred.home_team} {pred.home_win_prob != null && `${(pred.home_win_prob * 100).toFixed(0)}%`}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+                <span>Lean: <span className="text-foreground">{pred.lean}</span></span>
+                <span>Conf: {pred.confidence}</span>
+                <span>EV: <span className={(pred.expected_value ?? 0) >= 0 ? "text-accent" : "text-danger"}>
+                  {pred.expected_value}</span></span>
+                <span>Kelly: {pred.kelly_fraction != null ? `${(pred.kelly_fraction * 100).toFixed(1)}%` : "—"}</span>
+              </div>
+              {pred.honest_note && <div className="mt-2 text-[10px] text-muted">⚠️ {pred.honest_note}</div>}
+            </div>
+          )}
+        </>
       )}
     </div>
-  );
-}
-
-function UnpricedRow({
-  market,
-  busy,
-  onAdd,
-}: {
-  market: UnpricedMarket;
-  busy: boolean;
-  onAdd: (line: number) => void;
-}) {
-  // Pre-fill a sensible suggestion just below the floor hint.
-  const [line, setLine] = useState(Math.max(0, market.floor_hint - 0.5));
-  return (
-    <li className="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2 py-1.5 text-xs">
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{market.player}</div>
-        <div className="text-[10px] text-muted">
-          {market.market_label} · floor≈{market.floor_hint}
-        </div>
-      </div>
-      <input
-        type="number"
-        step="0.5"
-        value={line}
-        onChange={(e) => setLine(parseFloat(e.target.value))}
-        className="w-16 rounded border border-border bg-background px-1.5 py-1 text-right tabular-nums"
-      />
-      <button
-        onClick={() => onAdd(line)}
-        disabled={busy}
-        className="rounded bg-accent px-2 py-1 font-semibold text-background disabled:opacity-50"
-      >
-        {busy ? "…" : "add"}
-      </button>
-    </li>
   );
 }

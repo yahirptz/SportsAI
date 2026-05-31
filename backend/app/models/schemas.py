@@ -38,6 +38,9 @@ class EnrichmentContext(BaseModel):
     reverse_line_movement: bool = Field(
         default=False, description="Sharp money aligned against public (with model)."
     )
+    rest_days: int | None = Field(
+        default=None, description="Days since the player's team last played (fatigue check)."
+    )
 
 
 class PickStatus(str, Enum):
@@ -63,6 +66,7 @@ class Pick(BaseModel):
     confidence: float = Field(..., ge=0, le=100)
     kelly_stake: float = 0.0
     odds: int | None = Field(default=None, description="American odds for the leg.")
+    expected_value: float | None = Field(default=None, description="EV per $100 at the leg's odds.")
     status: PickStatus = PickStatus.CANDIDATE
     enrichment: EnrichmentContext = Field(default_factory=EnrichmentContext)
     reasoning: str | None = Field(default=None, description="Claude 'why this pick' summary.")

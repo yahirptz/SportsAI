@@ -16,7 +16,7 @@ from app.floor.engine import GameLog, PlayerStatInput, evaluate_stat
 from app.models.schemas import EnrichmentContext, Parlay, Pick, PickStatus
 from app.parlay.builder import CorrelationMatrix, build_parlay
 from app.scoring.confidence import score_confidence
-from app.scoring.kelly import kelly_stake
+from app.scoring.kelly import expected_value, kelly_stake
 from app.sports.registry import Sport, route_sport
 
 
@@ -82,6 +82,7 @@ def generate_picks(
 
         breakdown = score_confidence(result, ctx)
         stake = kelly_stake(breakdown.total, bankroll, prop.odds)
+        ev = expected_value(breakdown.total / 100.0, prop.odds) if prop.odds is not None else None
         spec = config.stat(prop.stat_key)
 
         picks.append(
@@ -100,6 +101,7 @@ def generate_picks(
                 confidence=breakdown.total,
                 kelly_stake=stake,
                 odds=prop.odds,
+                expected_value=ev,
                 status=PickStatus.CANDIDATE,
                 enrichment=ctx,
             )

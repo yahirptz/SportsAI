@@ -104,6 +104,40 @@ are disk-cached and rate-limit-aware (429 backoff) for the trial tier.
 Every feed call runs under a circuit breaker; an outage or stale data trips it
 and hard-stops downstream agents (SRS §01), surfaced at `/api/feed/health`.
 
+## Moneyline & form model
+
+A form-based moneyline model (no black-box ML — win probability comes only from
+our SportRadar data). For both teams in the next game it pulls last-5 results,
+margins, points-allowed floor, home/away record, **days rest**, and a pace proxy,
+and computes a 0–100 form score. Predictions add **Expected Value** and a
+**Kelly fraction** on the odds you supply.
+
+> Note: this deliberately does **not** load the pre-trained XGBoost model from
+> kyleskom's NBA-Machine-Learning-Sports-Betting — that model needs ~100
+> stats.nba.com features in an exact column order our SportRadar schema can't
+> reproduce, so it would output confident nonsense. We lifted the *Expected
+> Value* and *Days-Rest* logic from that repo instead.
+
+**New endpoints**
+| Endpoint | Description |
+|---|---|
+| `GET /api/moneyline/form/{sport}` | Team form (last-5, margins, points-allowed floor, home/away record, rest, pace, 0–100 score) for both teams in the next game |
+| `POST /api/moneyline/predict` | Form-model win prob + EV + Kelly. Body: `{sport, home_odds, away_odds}`. Returns form scores, win prob, lean, confidence, `expected_value`, `kelly_fraction`, `honest_note` |
+
+Other integrations from that repo:
+- **Days rest** — computed live from SportRadar; a player on a back-to-back / `<2`
+  days rest gets a confidence haircut in the scorer, and rest is shown in the form model.
+- **Expected value** — `expected_value(p_win, odds)` in `app/scoring/kelly.py`; every
+  pick now carries an `expected_value` field.
+- **Moneyline anchor leg** — the SGP builder can prepend a moneyline lean as an
+  anchor (`include_moneyline_anchor=True`, confidence > 65); **off by default**.
+
+```bash
+curl localhost:8000/api/moneyline/form/nba
+curl -X POST localhost:8000/api/moneyline/predict \
+  -H 'Content-Type: application/json' -d '{"sport":"nba","home_odds":-130,"away_odds":110}'
+```
+
 ## Local infrastructure
 
 ```bash
