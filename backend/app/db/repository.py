@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 
 from sqlalchemy import func, select
 
@@ -42,6 +43,26 @@ def save_picks(picks: list[Pick]) -> int:
             ))
             saved += 1
     return saved
+
+
+def log_game_bet(sport: str, game_id: str, team: str, side: str, odds: int) -> str:
+    """Log a moneyline bet so it can be auto-graded from the final score.
+
+    ``side`` is 'home' or 'away'. Graded as a win when the team's margin > 0,
+    which reuses the over-grading path (line = 0, actual = signed margin).
+    """
+    pid = str(uuid.uuid4())
+    key = f"{sport}:{game_id}:{side}:moneyline:0"
+    with get_session() as s:
+        existing = s.scalar(select(TrackedPick.id).where(TrackedPick.dedup_key == key))
+        if existing:
+            return existing
+        s.add(TrackedPick(
+            id=pid, dedup_key=key, sport=sport, game_id=game_id, player_id=side,
+            player_name=team, market="moneyline", market_label="Moneyline",
+            line=0.0, floor=0.0, gap=0.0, confidence=0.0, odds=odds, bet_type="moneyline",
+        ))
+    return pid
 
 
 def _result_for_over(line: float, actual: float) -> str:
@@ -113,7 +134,8 @@ def open_picks(sport: str | None = None) -> list[dict]:
             stmt = stmt.where(TrackedPick.sport == sport)
         return [
             {"id": p.id, "sport": p.sport, "game_id": p.game_id, "player_id": p.player_id,
-             "player_name": p.player_name, "market": p.market, "line": p.line}
+             "player_name": p.player_name, "market": p.market, "line": p.line,
+             "bet_type": p.bet_type}
             for p in s.scalars(stmt)
         ]
 

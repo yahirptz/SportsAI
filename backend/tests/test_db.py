@@ -3,6 +3,7 @@
 import uuid
 
 from app.db.repository import (
+    log_game_bet,
     open_picks,
     performance_summary,
     record_outcome,
@@ -47,3 +48,14 @@ def test_save_dedupes_and_grades_to_performance():
 
 def test_grade_unknown_pick_returns_none():
     assert record_outcome("does-not-exist", actual_value=1) is None
+
+
+def test_moneyline_bet_grades_by_margin():
+    from app.vault.patterns import compute_patterns
+    pid = log_game_bet("nba", "ml-test-game", "Test Team", "home", 130)
+    # autograde feeds the signed margin; +8 margin => win, -5 => loss
+    assert record_outcome(pid, actual_value=8)["result"] == "win"
+    loss = log_game_bet("nba", "ml-test-game-2", "Dog Team", "away", -120)
+    assert record_outcome(loss, actual_value=-5)["result"] == "loss"
+    # moneyline shows up in by_bet_type but NOT in the cushion buckets
+    assert "moneyline" in compute_patterns()["by_bet_type"]

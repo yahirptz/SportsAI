@@ -46,7 +46,21 @@ def autograde(sport_value: str) -> dict:
             for pl in root.get(side, {}).get("players", []) or []:
                 if pl.get("id"):
                     players[pl["id"]] = pl
+        # Final team scores for moneyline grading.
+        score_key = {"nba": "points", "mlb": "runs", "nhl": "points"}.get(sport_value, "points")
+        home_score = root.get("home", {}).get(score_key)
+        away_score = root.get("away", {}).get(score_key)
+
         for p in plist:
+            if p.get("bet_type") == "moneyline":
+                if home_score is None or away_score is None:
+                    skipped += 1
+                    continue
+                mine, opp = ((home_score, away_score) if p["player_id"] == "home"
+                             else (away_score, home_score))
+                record_outcome(p["id"], actual_value=float(mine - opp))  # margin > 0 => win
+                graded += 1
+                continue
             pl = players.get(p["player_id"])
             if pl is None or p["market"] not in extractors:
                 skipped += 1

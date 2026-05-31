@@ -19,9 +19,11 @@ def init_db() -> None:
     Base.metadata.create_all(_engine)
     # Lightweight migration: add columns introduced after a DB was created.
     cols = {c["name"] for c in inspect(_engine).get_columns("tracked_picks")}
-    if "context" not in cols:
-        with _engine.begin() as conn:
+    with _engine.begin() as conn:
+        if "context" not in cols:
             conn.execute(text("ALTER TABLE tracked_picks ADD COLUMN context VARCHAR"))
+        if "bet_type" not in cols:
+            conn.execute(text("ALTER TABLE tracked_picks ADD COLUMN bet_type VARCHAR DEFAULT 'prop'"))
 
 
 @contextmanager

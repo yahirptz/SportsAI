@@ -17,6 +17,7 @@ from fastapi import APIRouter, Body, HTTPException
 from app.config import settings
 from app.db.autograde import autograde
 from app.db.repository import (
+    log_game_bet,
     open_picks,
     performance_summary,
     record_outcome,
@@ -131,6 +132,21 @@ def grade_route(
     if result is None:
         raise HTTPException(status_code=404, detail="Tracked pick not found.")
     return result
+
+
+@router.post("/bets/moneyline", summary="Log a moneyline bet (auto-grades from the final score)")
+def log_moneyline_bet(
+    sport: str = Body(...),
+    game_id: str = Body(...),
+    team: str = Body(...),
+    side: str = Body(...),   # "home" | "away"
+    odds: int = Body(...),
+):
+    s = _resolve_sport(sport)
+    if side not in ("home", "away"):
+        raise HTTPException(status_code=400, detail="side must be 'home' or 'away'.")
+    pick_id = log_game_bet(s.value, game_id, team, side, odds)
+    return {"ok": True, "pick_id": pick_id}
 
 
 @router.post("/picks/{pick_id}/closing_line", summary="Backfill closing line → CLV")
