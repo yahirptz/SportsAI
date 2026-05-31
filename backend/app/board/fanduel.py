@@ -13,18 +13,31 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-# market header -> our stat key
+# market header phrase -> our stat key. Matched with re.search, so a "To
+# Record"/"To Score" prefix is optional and both sports' boards are handled.
 _MARKET_PATTERNS = [
-    (re.compile(r"To Score (\d+)\+ Points", re.I), "pts"),
+    # NBA
+    (re.compile(r"(\d+)\+ Points", re.I), "pts"),
     (re.compile(r"(\d+)\+ Made Threes", re.I), "fg3m"),
-    (re.compile(r"To Record (\d+)\+ Rebounds", re.I), "reb"),
-    (re.compile(r"To Record (\d+)\+ Assists", re.I), "ast"),
+    (re.compile(r"(\d+)\+ Rebounds", re.I), "reb"),
+    (re.compile(r"(\d+)\+ Assists", re.I), "ast"),
+    # MLB (order matters: check Total Bases before a bare "Bases")
+    (re.compile(r"(\d+)\+ Total Bases", re.I), "tb"),
+    (re.compile(r"(\d+)\+ Hits", re.I), "hits"),
+    (re.compile(r"(\d+)\+ RBI", re.I), "rbi"),
+    (re.compile(r"(\d+)\+ Runs(?!\s+Bat)", re.I), "runs"),  # not "Runs Batted In"
+    (re.compile(r"(\d+)\+ Strikeouts", re.I), "k_pitcher"),
+    (re.compile(r"(\d+)\+ Walks", re.I), "bb"),
 ]
 _TIME_RE = re.compile(r"^[A-Z][a-z]{2}\s+\d{1,2}:\d{2}(am|pm)\s+ET$")
 _ODDS_RE = re.compile(r"^[+-]\d+$")
 _NOISE = {"more wagers", "show more", "tap a player name or icon for stats and more betting options"}
 
-_LABELS = {"pts": "Points", "reb": "Rebounds", "ast": "Assists", "fg3m": "Made Threes"}
+_LABELS = {
+    "pts": "Points", "reb": "Rebounds", "ast": "Assists", "fg3m": "Made Threes",
+    "hits": "Hits", "tb": "Total Bases", "rbi": "RBI", "runs": "Runs",
+    "k_pitcher": "Strikeouts", "bb": "Walks",
+}
 
 
 @dataclass
@@ -60,7 +73,7 @@ def parse_fanduel(text: str) -> list[ParsedProp]:
 
         matched_header = False
         for pat, mk in _MARKET_PATTERNS:
-            m = pat.match(s)
+            m = pat.search(s)
             if m:
                 market, threshold = mk, int(m.group(1))
                 pending_player = None
@@ -83,7 +96,9 @@ def parse_fanduel(text: str) -> list[ParsedProp]:
         # Otherwise it's a player name (or a category divider we don't track).
         # A divider resets market so its players aren't captured.
         if s in ("Quick Bets", "First Basket", "Method Of First Basket",
-                 "Team to Score First", "Made 3s", "Rebounds", "Assists"):
+                 "Team to Score First", "Made 3s", "Rebounds", "Assists",
+                 "Hits", "Total Bases", "RBIs", "Runs", "Strikeouts",
+                 "Pitcher Strikeouts", "Walks", "Stolen Bases", "Pitching", "Batting"):
             market = threshold = None
             pending_player = None
             continue

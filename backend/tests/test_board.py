@@ -39,6 +39,20 @@ def test_parse_fanduel_tiers():
     assert vass.threshold == 2 and vass.line == 1.5 and vass.odds == -350
 
 
+def test_parse_fanduel_mlb_markets():
+    mlb = (
+        "To Record 2+ Hits\nAaron Judge\n+180\nSun 1:40pm ET\n"
+        "To Record 2+ Total Bases\nAaron Judge\n-140\nSun 1:40pm ET\n"
+        "To Record 5+ Strikeouts\nTarik Skubal\n-150\nSun 1:40pm ET\n"
+        "1+ RBIs\nShohei Ohtani\n-115\nSun 1:40pm ET\n"
+    )
+    by = {(p.player, p.market): p for p in parse_fanduel(mlb)}
+    assert by[("Aaron Judge", "hits")].line == 1.5
+    assert by[("Aaron Judge", "tb")].threshold == 2
+    assert by[("Tarik Skubal", "k_pitcher")].threshold == 5
+    assert by[("Shohei Ohtani", "rbi")].odds == -115
+
+
 def test_build_board_keeps_only_all_n_clears(monkeypatch):
     # Synthetic floors: Wemby clears 20+ every game; Castle misses 20+ once.
     monkeypatch.setattr(builder, "get_game_floors", lambda sport, n=6: {
