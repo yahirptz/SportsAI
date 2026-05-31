@@ -191,6 +191,7 @@ SPORTS: dict[Sport, SportConfig] = {
         primary_source="SportRadar",
         subreddits=["r/sportsbook", "r/hockey"],
         exclusion_rules=_GLOBAL_EXCLUSIONS,
+        active=True,
     ),
     Sport.EPL: SportConfig(
         sport=Sport.EPL,

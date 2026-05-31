@@ -16,11 +16,14 @@ from dataclasses import dataclass
 # market header phrase -> our stat key. Matched with re.search, so a "To
 # Record"/"To Score" prefix is optional and both sports' boards are handled.
 _MARKET_PATTERNS = [
-    # NBA
+    # NBA (Points/Assists are shared with NHL — extractor differs per sport)
     (re.compile(r"(\d+)\+ Points", re.I), "pts"),
     (re.compile(r"(\d+)\+ Made Threes", re.I), "fg3m"),
     (re.compile(r"(\d+)\+ Rebounds", re.I), "reb"),
     (re.compile(r"(\d+)\+ Assists", re.I), "ast"),
+    # NHL
+    (re.compile(r"(\d+)\+ Shots", re.I), "shots"),   # "Shots on Goal"
+    (re.compile(r"(\d+)\+ Goals", re.I), "goals"),
     # MLB (order matters: check Total Bases before a bare "Bases")
     (re.compile(r"(\d+)\+ Total Bases", re.I), "tb"),
     (re.compile(r"(\d+)\+ Hits", re.I), "hits"),
@@ -37,6 +40,7 @@ _LABELS = {
     "pts": "Points", "reb": "Rebounds", "ast": "Assists", "fg3m": "Made Threes",
     "hits": "Hits", "tb": "Total Bases", "rbi": "RBI", "runs": "Runs",
     "k_pitcher": "Strikeouts", "bb": "Walks",
+    "shots": "Shots on Goal", "goals": "Goals",
 }
 
 

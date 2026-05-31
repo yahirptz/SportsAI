@@ -39,8 +39,8 @@ from app.sports.registry import Sport, get_config
 
 _RATE_LIMIT_SLEEP = 1.3  # seconds between live calls (trial tier ~1 req/sec)
 
-# SportRadar URL path segment + API version per sport.
-_SPORT_PATH = {Sport.NBA: ("nba", "v8"), Sport.MLB: ("mlb", "v8")}
+# SportRadar URL path segment + API version per sport (NHL is on v7).
+_SPORT_PATH = {Sport.NBA: ("nba", "v8"), Sport.MLB: ("mlb", "v8"), Sport.NHL: ("nhl", "v7")}
 
 
 def _endpoint_for(sport: Sport) -> tuple[str | None, str | None]:
@@ -52,6 +52,7 @@ def _endpoint_for(sport: Sport) -> tuple[str | None, str | None]:
     key = {
         Sport.NBA: settings.sportradar_api_key,
         Sport.MLB: settings.sportradar_mlb_api_key,
+        Sport.NHL: settings.sportradar_api_key,  # multi-sport trial key covers NHL
     }.get(sport)
     return base, key
 
@@ -91,6 +92,12 @@ def _mlb_pitch(*path: str) -> Callable[[dict], float]:
     return extract
 
 
+def _nhl(key: str) -> Callable[[dict], float]:
+    # NHL skater stats live under statistics.total. (Goalie saves are elsewhere
+    # and not wired yet.)
+    return lambda p: float((p.get("statistics") or {}).get("total", {}).get(key, 0) or 0)
+
+
 EXTRACTORS: dict[Sport, dict[str, Callable[[dict], float]]] = {
     Sport.NBA: {
         "pts": _nba("points"),
@@ -109,6 +116,13 @@ EXTRACTORS: dict[Sport, dict[str, Callable[[dict], float]]] = {
         "tb": _mlb_hit("onbase", "tb"),
         "bb": _mlb_hit("onbase", "bb"),
         "k_pitcher": _mlb_pitch("outs", "ktotal"),
+    },
+    Sport.NHL: {
+        "shots": _nhl("shots"),   # shots on goal
+        "pts": _nhl("points"),    # goals + assists
+        "goals": _nhl("goals"),
+        "ast": _nhl("assists"),
+        # "saves" (goalie) is not wired — it lives outside statistics.total.
     },
 }
 
