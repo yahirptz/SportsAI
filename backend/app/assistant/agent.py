@@ -26,7 +26,11 @@ Hard rules — never break these:
 When the user wants a pick/parlay or asks "is this good", call build_bet with
 the right sport, mode (single/parlay/moneyline) and leg count, then explain the
 result: the legs, why they qualified (floor vs line), the combined odds, the
-honest probability, and the main risk. If no board is pasted yet, ask for it."""
+honest probability, and the main risk. If no board is pasted yet, ask for it.
+
+build_bet also returns a "debate" — a skeptic's verdict on each candidate leg
+(keep/cut + reason). Tell the user which legs got CUT and why (e.g. thin-cushion
+variance), so they see the slip was challenged, not just assembled."""
 
 TOOL = {
     "name": "build_bet",
@@ -68,11 +72,16 @@ def _run_tool(inp: dict, board: str, bankroll: float) -> dict:
         ]
         return {"mode": "moneyline", "games": games, "note": res.get("note")}
     board_plays = build_floor_board(sport, parse_fanduel(board or ""))
+    # Debate agent: challenge every leg, keep only survivors before sizing.
+    from app.assistant.debate import debate
+    deb = debate(board_plays)
+    survivors = [p for p in board_plays if (p.player, p.market) in deb["survivors"]]
     bet = assemble_bet(
-        board_plays, legs=1 if mode == "single" else inp.get("legs", 3),
+        survivors, legs=1 if mode == "single" else inp.get("legs", 3),
         min_cushion=inp.get("min_cushion", 0.0), bankroll=bankroll,
     )
-    return {"mode": mode, "board": [p.as_dict() for p in board_plays], "bet": bet}
+    return {"mode": mode, "board": [p.as_dict() for p in board_plays],
+            "debate": deb["verdicts"], "bet": bet}
 
 
 def run_assistant(messages: list[dict], sport: str, board: str, bankroll: float = 1000.0) -> dict:

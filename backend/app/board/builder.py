@@ -28,6 +28,7 @@ class FloorPlay:
     n: int                # games in sample
     hit_prob: float       # Laplace-smoothed hit rate
     cushion: float        # floor - line
+    values: list[int]     # the last-N stat values (evidence for the debate)
 
     def as_dict(self) -> dict:
         return self.__dict__.copy()
@@ -99,6 +100,7 @@ def build_floor_board(sport: Sport, props: list[ParsedProp], n: int = FORM_GAMES
             # so stacked legs don't compound to false certainty.
             hit_prob=round((hit + 1) / (len(vals) + 2), 3),
             cushion=round(min(vals) - prop.line, 1),
+            values=list(vals),
         ))
     # Best play per (player, market); then rank by probability, then cushion.
     best: dict[tuple, FloorPlay] = {}

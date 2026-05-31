@@ -69,7 +69,8 @@ def test_build_board_keeps_only_all_n_clears(monkeypatch):
 
 def _play(player, odds, prob, market="pts"):
     return FloorPlay(player=player, market=market, market_label="x", threshold=10,
-                     line=9.5, odds=odds, floor=12, hit_count=6, n=6, hit_prob=prob, cushion=2)
+                     line=9.5, odds=odds, floor=12, hit_count=6, n=6, hit_prob=prob,
+                     cushion=2, values=[12, 13, 12, 14, 12, 13])
 
 
 def test_assemble_single_and_parlay():
