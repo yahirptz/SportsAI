@@ -144,6 +144,20 @@ def performance():
     return performance_summary()
 
 
+@router.get("/vault/patterns", summary="Learned patterns from graded bets (Obsidian §05)")
+def vault_patterns():
+    from app.vault import compute_patterns
+
+    return compute_patterns()
+
+
+@router.post("/vault/debrief", summary="Generate the AI debrief and write it to the vault")
+def vault_debrief():
+    from app.vault import generate_debrief
+
+    return generate_debrief()
+
+
 @router.get("/rules/{sport}", summary="Active agent rules from the Obsidian vault")
 def rules(sport: str):
     s = _resolve_sport(sport)

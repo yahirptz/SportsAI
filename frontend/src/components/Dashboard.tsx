@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, type SportInfo } from "@/lib/api";
 import Assistant from "./Assistant";
 import TrackRecord from "./TrackRecord";
+import Insights from "./Insights";
 
 export default function Dashboard() {
   const [sports, setSports] = useState<SportInfo[]>([]);
@@ -52,8 +53,9 @@ export default function Dashboard() {
         <Assistant key={sport} sport={sport} />
       </main>
 
-      <div className="mt-6">
+      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <TrackRecord sport={sport} />
+        <Insights />
       </div>
     </div>
   );

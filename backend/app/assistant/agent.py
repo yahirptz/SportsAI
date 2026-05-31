@@ -81,6 +81,12 @@ def run_assistant(messages: list[dict], sport: str, board: str, bankroll: float 
 
     client = Anthropic(api_key=settings.anthropic_api_key)
     system = [{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}]
+    # Sharpen over time: inject what the vault has learned from graded bets.
+    try:
+        from app.vault import patterns_brief
+        system.append({"type": "text", "text": "VAULT KNOWLEDGE — " + patterns_brief()})
+    except Exception:
+        pass
     if board:
         system.append({"type": "text",
                        "text": f"A {sport.upper()} FanDuel board is pasted and available to build_bet."})

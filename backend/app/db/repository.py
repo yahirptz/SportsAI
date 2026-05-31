@@ -71,8 +71,20 @@ def record_outcome(
         s.add(OutcomeRow(pick_id=pick.id, result=result, actual_value=actual_value,
                          closing_line=closing_line, clv=clv, units=units))
         pick.status = "graded"
-        return {"pick_id": pick.id, "result": result, "actual_value": actual_value,
-                "closing_line": closing_line, "clv": clv, "units": units}
+        journal = {
+            "sport": pick.sport, "player_name": pick.player_name,
+            "market_label": pick.market_label, "line": pick.line, "floor": pick.floor,
+            "gap": pick.gap, "odds": pick.odds, "result": result,
+            "actual_value": actual_value, "clv": clv,
+        }
+    # Write to the Obsidian vault outside the DB session (best-effort).
+    try:
+        from app.vault import write_journal_entry
+        write_journal_entry(journal)
+    except Exception:
+        pass
+    return {"pick_id": pick_id, "result": result, "actual_value": actual_value,
+            "closing_line": closing_line, "clv": clv, "units": units}
 
 
 def open_picks(sport: str | None = None) -> list[dict]:

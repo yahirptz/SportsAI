@@ -180,6 +180,9 @@ export const api = {
       body: JSON.stringify({ messages, sport, board }),
     }),
   performance: () => getJSON<Performance>("/api/performance"),
+  vaultPatterns: () => getJSON<Patterns>("/api/vault/patterns"),
+  vaultDebrief: () =>
+    getJSON<{ debrief: string; patterns: Patterns }>("/api/vault/debrief", { method: "POST" }),
   importGameLines: (sport: string, paste: string) =>
     getJSON<{ ok: boolean; imported: number }>("/api/games/lines/import", {
       method: "POST",
@@ -212,6 +215,20 @@ export interface Performance {
   open_picks: number;
   overall: PerfBucket | null;
   by_sport: Record<string, PerfBucket>;
+}
+
+export interface Bucket {
+  n: number;
+  hit_rate: number | null;
+}
+
+export interface Patterns {
+  total_graded: number;
+  overall: Bucket;
+  by_cushion: Record<string, Bucket>;
+  by_market: Record<string, Bucket>;
+  by_player: Record<string, Bucket>;
+  by_sport: Record<string, Bucket>;
 }
 
 export interface FloorPlay {

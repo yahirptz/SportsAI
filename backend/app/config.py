@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     # Persistence. Tracking store defaults to local SQLite (zero setup); point
     # at the docker Postgres by setting EDGEIQ_TRACKING_DATABASE_URL.
     tracking_database_url: str = "sqlite:///edgeiq.db"
+    obsidian_vault_path: str = "vault"  # local-first markdown vault (SRS §05)
     database_url: str = "postgresql://edgeiq:edgeiq@localhost:5432/edgeiq"
     timescale_url: str = "postgresql://edgeiq:edgeiq@localhost:5433/edgeiq_ts"
     redis_url: str = "redis://localhost:6379/0"
