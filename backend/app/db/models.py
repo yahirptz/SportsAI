@@ -38,6 +38,7 @@ class TrackedPick(Base):
     odds: Mapped[int | None] = mapped_column(nullable=True)
     kelly_stake: Mapped[float] = mapped_column(Float, default=0.0)
     injury_summary: Mapped[str | None] = mapped_column(String, nullable=True)
+    context: Mapped[str | None] = mapped_column(String, nullable=True)  # JSON situational tags
     status: Mapped[str] = mapped_column(String, default="open", index=True)  # open | graded
     created_at: Mapped[datetime] = mapped_column(default=_utcnow)
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import func, select
 
 from app.db.engine import get_session
@@ -25,12 +27,18 @@ def save_picks(picks: list[Pick]) -> int:
             if existing:
                 p.id = existing  # hand back the persisted id so the pick stays gradable
                 continue
+            rest = p.enrichment.rest_days
+            context = json.dumps({
+                "rest_days": rest,
+                "b2b": rest is not None and rest < 2,
+            })
             s.add(TrackedPick(
                 id=p.id, dedup_key=key, sport=p.sport.value, game_id=p.game_id,
                 player_id=p.player_id, player_name=p.player_name, market=p.market,
                 market_label=p.market_label, line=p.line, floor=p.floor, gap=p.gap,
                 sample_average=p.sample_average, confidence=p.confidence, odds=p.odds,
                 kelly_stake=p.kelly_stake, injury_summary=p.enrichment.perplexity_summary,
+                context=context,
             ))
             saved += 1
     return saved
@@ -85,6 +93,17 @@ def record_outcome(
         pass
     return {"pick_id": pick_id, "result": result, "actual_value": actual_value,
             "closing_line": closing_line, "clv": clv, "units": units}
+
+
+def set_closing_line(pick_id: str, closing_line: float) -> dict | None:
+    """Backfill the closing line on a graded pick and (re)compute its CLV."""
+    with get_session() as s:
+        pick = s.get(TrackedPick, pick_id)
+        if pick is None or pick.outcome is None:
+            return None
+        pick.outcome.closing_line = closing_line
+        pick.outcome.clv = compute_clv(pick.line, closing_line)
+        return {"pick_id": pick_id, "closing_line": closing_line, "clv": pick.outcome.clv}
 
 
 def open_picks(sport: str | None = None) -> list[dict]:

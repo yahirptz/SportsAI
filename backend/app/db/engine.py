@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
@@ -17,6 +17,11 @@ _SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
 
 def init_db() -> None:
     Base.metadata.create_all(_engine)
+    # Lightweight migration: add columns introduced after a DB was created.
+    cols = {c["name"] for c in inspect(_engine).get_columns("tracked_picks")}
+    if "context" not in cols:
+        with _engine.begin() as conn:
+            conn.execute(text("ALTER TABLE tracked_picks ADD COLUMN context VARCHAR"))
 
 
 @contextmanager

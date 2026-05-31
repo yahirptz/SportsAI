@@ -16,7 +16,13 @@ from fastapi import APIRouter, Body, HTTPException
 
 from app.config import settings
 from app.db.autograde import autograde
-from app.db.repository import open_picks, performance_summary, record_outcome, save_picks
+from app.db.repository import (
+    open_picks,
+    performance_summary,
+    record_outcome,
+    save_picks,
+    set_closing_line,
+)
 from app.enrichment import get_enrichment_service
 from app.feeds import HEALTH_REGISTRY, get_provider
 from app.parlay.builder import build_parlay
@@ -124,6 +130,15 @@ def grade_route(
     result = record_outcome(pick_id, actual_value=actual_value, closing_line=closing_line)
     if result is None:
         raise HTTPException(status_code=404, detail="Tracked pick not found.")
+    return result
+
+
+@router.post("/picks/{pick_id}/closing_line", summary="Backfill closing line → CLV")
+def set_closing(pick_id: str, closing_line: float = Body(..., embed=True)):
+    """Record the closing line on a graded pick so CLV (real-edge signal) populates."""
+    result = set_closing_line(pick_id, closing_line)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Graded pick not found.")
     return result
 
 

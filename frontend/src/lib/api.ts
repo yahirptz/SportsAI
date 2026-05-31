@@ -226,6 +226,7 @@ export interface Performance {
 export interface Bucket {
   n: number;
   hit_rate: number | null;
+  avg_clv: number | null;
 }
 
 export interface Patterns {
@@ -233,6 +234,7 @@ export interface Patterns {
   overall: Bucket;
   by_cushion: Record<string, Bucket>;
   by_market: Record<string, Bucket>;
+  by_rest: Record<string, Bucket>;
   by_player: Record<string, Bucket>;
   by_sport: Record<string, Bucket>;
 }

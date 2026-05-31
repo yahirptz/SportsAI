@@ -27,8 +27,11 @@ export default function Insights() {
     }
   };
 
-  const rows = (m?: Record<string, { n: number; hit_rate: number | null }>) =>
+  const rows = (m?: Record<string, { n: number; hit_rate: number | null; avg_clv: number | null }>) =>
     Object.entries(m ?? {}).sort((a, b) => b[1].n - a[1].n);
+
+  const clv = (v: { avg_clv: number | null }) =>
+    v.avg_clv != null ? ` · CLV ${v.avg_clv > 0 ? "+" : ""}${v.avg_clv}` : "";
 
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
@@ -54,6 +57,7 @@ export default function Insights() {
         <>
           <div className="mt-2 text-[11px] text-muted">
             {p.total_graded} graded · overall {p.overall.hit_rate}%
+            {p.overall.avg_clv != null && ` · CLV ${p.overall.avg_clv > 0 ? "+" : ""}${p.overall.avg_clv}`}
             <span className="ml-1">(small sample — directional only)</span>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-4 text-xs">
@@ -62,7 +66,7 @@ export default function Insights() {
               {rows(p.by_cushion).map(([k, v]) => (
                 <div key={k} className="flex justify-between">
                   <span>{k}</span>
-                  <span className="tabular-nums text-muted">{v.hit_rate}% · n={v.n}</span>
+                  <span className="tabular-nums text-muted">{v.hit_rate}% · n={v.n}{clv(v)}</span>
                 </div>
               ))}
             </div>
@@ -75,6 +79,20 @@ export default function Insights() {
                 </div>
               ))}
             </div>
+          </div>
+          {Object.keys(p.by_rest ?? {}).length > 0 && (
+            <div className="mt-3 border-t border-border pt-2 text-xs">
+              <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">By rest</div>
+              {rows(p.by_rest).map(([k, v]) => (
+                <div key={k} className="flex justify-between">
+                  <span>{k}</span>
+                  <span className="tabular-nums text-muted">{v.hit_rate}% · n={v.n}{clv(v)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 text-[10px] text-muted">
+            CLV (closing-line value) is the real edge signal — log closing lines at grade time.
           </div>
         </>
       )}
