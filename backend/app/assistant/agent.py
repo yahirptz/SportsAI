@@ -7,8 +7,9 @@ import json
 from anthropic import Anthropic
 
 from app.board import assemble_bet, build_floor_board, parse_fanduel
+from app.board.fanduel import parse_fanduel_games
 from app.config import settings
-from app.games.source import build_game_values
+from app.games.source import build_game_values, save_game_lines
 from app.sports.registry import Sport
 
 SYSTEM = """You are EdgeIQ's betting assistant. You help build same-game and \
@@ -50,11 +51,19 @@ def _run_tool(inp: dict, board: str, bankroll: float) -> dict:
     sport = Sport(inp["sport"])
     mode = inp.get("mode", "parlay")
     if mode == "moneyline":
+        # If the user pasted a game-line block, ingest it so the model has odds.
+        parsed = parse_fanduel_games(board or "")
+        if parsed:
+            save_game_lines(sport, parsed)
         res = build_game_values(sport, bankroll)
         games = [
-            {"away": g.away, "home": g.home, "best": (g.best.model_dump() if g.best else None),
+            {"away": g.away, "home": g.home,
+             "edges": [e.model_dump() for e in g.edges],
+             "best": (g.best.model_dump() if g.best else None),
              "total_lean": (g.total_lean.model_dump() if g.total_lean else None),
-             "injury_notes": g.injury_notes}
+             "injury_notes": g.injury_notes,
+             "public_note": g.public_note,
+             "home_sentiment": g.home_sentiment, "away_sentiment": g.away_sentiment}
             for g in res.get("games", [])
         ]
         return {"mode": "moneyline", "games": games, "note": res.get("note")}

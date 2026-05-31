@@ -93,20 +93,43 @@ def build_game_values(sport: Sport, bankroll: float) -> dict:
     }
 
 
+def save_game_lines(sport: Sport, parsed: list[dict]) -> int:
+    """Upsert parsed game lines into game_lines.json (shared by API + assistant)."""
+    path = Path(GAME_LINES_PATH)
+    data = json.loads(path.read_text()) if path.exists() else {}
+    rows = data.setdefault(sport.value, [])
+    for g in parsed:
+        rows[:] = [r for r in rows if not (r.get("away") == g["away"] and r.get("home") == g["home"])]
+        rows.append(g)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2))
+    return len(parsed)
+
+
 def _attach_injuries(games: list[GameValue], sport: Sport) -> None:
-    """Add a key-player injury note per team (Perplexity), if enrichment is on."""
+    """Per team: injury note (Perplexity) + Reddit public-lean / fade read."""
     from app.enrichment import get_enrichment_service
     from app.sports.registry import get_config
 
     service = get_enrichment_service()
     if not service.enabled:
         return
-    label = get_config(sport).label
+    cfg = get_config(sport)
     for gv in games:
         for team in (gv.away, gv.home):
-            news = service.team_news(team, label)
+            news = service.team_news(team, cfg.label)
             if news.get("note"):
                 gv.injury_notes.append(f"{team}: {news['note']}")
+        # Reddit public lean → fade signal (context only, never overrides).
+        gv.away_sentiment = service.team_sentiment(gv.away, cfg.subreddits)
+        gv.home_sentiment = service.team_sentiment(gv.home, cfg.subreddits)
+        diff = (gv.home_sentiment or 0) - (gv.away_sentiment or 0)
+        if abs(diff) < 0.25:
+            gv.public_note = "No strong public lean (Reddit)."
+        elif diff > 0:
+            gv.public_note = f"Public buzz on {gv.home} — fade value may be on {gv.away}."
+        else:
+            gv.public_note = f"Public buzz on {gv.away} — fade value may be on {gv.home}."
 
 
 def _build_mlb(stats: SportRadarStats, odds: list[dict], bankroll: float) -> dict:

@@ -112,6 +112,9 @@ class GameValue(BaseModel):
     best: MoneylineEdge | None = None
     edges: list[MoneylineEdge] = Field(default_factory=list)
     injury_notes: list[str] = Field(default_factory=list)
+    home_sentiment: float | None = None  # Reddit, -1..1
+    away_sentiment: float | None = None
+    public_note: str | None = None       # public-lean / fade read
     note: str | None = None
 
 

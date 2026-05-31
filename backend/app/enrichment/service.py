@@ -81,6 +81,18 @@ class EnrichmentService:
         self._cache.set(key, result)
         return result
 
+    def team_sentiment(self, team_name: str, subreddits: list[str]) -> float:
+        """Reddit public-lean proxy for a team (-1..1), cached per day. 0 if none."""
+        if not self.enabled or self._reddit is None:
+            return 0.0
+        key = f"teamsent:{team_name}:{date.today()}"
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached.get("s", 0.0)
+        s = self._reddit.score(team_name, subreddits)
+        self._cache.set(key, {"s": s})
+        return s
+
     # -- reasoning ----------------------------------------------------------
 
     def reason(self, facts: str) -> str:
