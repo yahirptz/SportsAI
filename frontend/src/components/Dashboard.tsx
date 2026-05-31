@@ -1,73 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { api, type FeedHealth, type Parlay, type Pick, type SportInfo } from "@/lib/api";
-import PickCard from "./PickCard";
-import ParlayPanel from "./ParlayPanel";
-import ModelHealth from "./ModelHealth";
-import OddsPanel from "./OddsPanel";
-import GameLines from "./GameLines";
-import FloorBoard from "./FloorBoard";
+import { useEffect, useState } from "react";
+import { api, type SportInfo } from "@/lib/api";
+import Assistant from "./Assistant";
 import TrackRecord from "./TrackRecord";
 
 export default function Dashboard() {
   const [sports, setSports] = useState<SportInfo[]>([]);
-  const [sport, setSport] = useState("nba");
-  const [picks, setPicks] = useState<Pick[]>([]);
-  const [parlay, setParlay] = useState<Parlay | null>(null);
-  const [health, setHealth] = useState<FeedHealth | null>(null);
+  const [sport, setSport] = useState("mlb");
   const [bankroll, setBankroll] = useState<number | null>(null);
-  const [enriched, setEnriched] = useState(false);
-  const [building, setBuilding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"props" | "games" | "board">("props");
 
   useEffect(() => {
-    api.sports().then(setSports).catch((e) => setError(String(e)));
+    api.sports().then(setSports).catch(() => {});
     api.bankroll().then((b) => setBankroll(b.balance)).catch(() => {});
   }, []);
 
-  const loadSport = useCallback(async (s: string) => {
-    setError(null);
-    setParlay(null);
-    try {
-      const [p, h] = await Promise.all([api.picks(s), api.feedHealth()]);
-      setPicks(p.picks);
-      setEnriched(p.enriched);
-      setHealth(h);
-    } catch (e) {
-      setError(String(e));
-      setPicks([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadSport(sport);
-  }, [sport, loadSport]);
-
-  const build = async () => {
-    setBuilding(true);
-    setError(null);
-    try {
-      setParlay(await api.buildParlay(sport));
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBuilding(false);
-    }
-  };
-
   return (
-    <div className="mx-auto w-full max-w-6xl flex-1 px-5 py-8">
-      {/* Header */}
+    <div className="mx-auto w-full max-w-5xl flex-1 px-5 py-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             Edge<span className="text-accent">IQ</span>
           </h1>
-          <p className="text-xs text-muted">
-            The Intelligent Edge · floor-verified same-game parlays
-          </p>
+          <p className="text-xs text-muted">Paste a board. Ask. Bet smarter.</p>
         </div>
         {bankroll != null && (
           <div className="rounded-lg border border-border bg-surface px-4 py-2 text-right">
@@ -77,101 +32,28 @@ export default function Dashboard() {
         )}
       </header>
 
-      {/* Sport tabs */}
-      <nav className="mt-6 flex flex-wrap gap-2">
-        {sports.map((s) => (
+      <nav className="mt-5 flex flex-wrap gap-2">
+        {sports.filter((s) => s.active).map((s) => (
           <button
             key={s.sport}
-            onClick={() => s.active && setSport(s.sport)}
-            disabled={!s.active}
+            onClick={() => setSport(s.sport)}
             className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
               sport === s.sport
                 ? "border-accent bg-accent/10 text-accent"
-                : s.active
-                  ? "border-border bg-surface text-foreground hover:border-accent/40"
-                  : "border-border bg-surface/50 text-muted/50 cursor-not-allowed"
+                : "border-border bg-surface text-foreground hover:border-accent/40"
             }`}
-            title={s.active ? s.primary_source : "Coming soon"}
           >
             {s.label}
-            {!s.active && <span className="ml-1 text-[9px]">soon</span>}
           </button>
         ))}
       </nav>
 
-      {error && (
-        <div className="mt-4 rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-          {error} — is the backend running on :8000?
-        </div>
-      )}
+      <main className="mt-5">
+        <Assistant key={sport} sport={sport} />
+      </main>
 
-      {/* Main grid */}
-      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* Main column: Player Props (floor model) or Game Lines (value model) */}
-        <section className="lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5 text-xs">
-              <button
-                onClick={() => setMode("props")}
-                className={`rounded-md px-3 py-1 font-medium transition ${
-                  mode === "props" ? "bg-accent/15 text-accent" : "text-muted"
-                }`}
-              >
-                Player Props
-              </button>
-              <button
-                onClick={() => setMode("games")}
-                className={`rounded-md px-3 py-1 font-medium transition ${
-                  mode === "games" ? "bg-warn/15 text-warn" : "text-muted"
-                }`}
-              >
-                Game Lines
-              </button>
-              <button
-                onClick={() => setMode("board")}
-                className={`rounded-md px-3 py-1 font-medium transition ${
-                  mode === "board" ? "bg-accent/15 text-accent" : "text-muted"
-                }`}
-              >
-                Floor Board
-              </button>
-            </div>
-            {mode === "props" && (
-              <div className="flex items-center gap-2">
-                {enriched && (
-                  <span className="rounded border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
-                    enriched
-                  </span>
-                )}
-                <span className="text-xs text-muted">{picks.length} eligible</span>
-              </div>
-            )}
-          </div>
-
-          {mode === "board" ? (
-            <FloorBoard sport={sport} />
-          ) : mode === "games" ? (
-            <GameLines sport={sport} />
-          ) : picks.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted">
-              No eligible picks — every prop failed the floor model.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {picks.map((p) => (
-                <PickCard key={p.id} pick={p} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Right rail */}
-        <aside className="space-y-5">
-          <ParlayPanel parlay={parlay} loading={building} onBuild={build} />
-          <TrackRecord sport={sport} />
-          <OddsPanel sport={sport} onPriced={() => loadSport(sport)} />
-          <ModelHealth health={health} />
-        </aside>
+      <div className="mt-6">
+        <TrackRecord sport={sport} />
       </div>
     </div>
   );

@@ -174,6 +174,11 @@ export const api = {
   bankroll: () => getJSON<{ balance: number; risk_profile: string }>("/api/bankroll"),
   feedHealth: () => getJSON<FeedHealth>("/api/feed/health"),
   games: (sport: string) => getJSON<GamesResponse>(`/api/games/${sport}`),
+  assistant: (messages: ChatMessage[], sport: string, board: string) =>
+    getJSON<AssistantResponse>("/api/assistant", {
+      method: "POST",
+      body: JSON.stringify({ messages, sport, board }),
+    }),
   performance: () => getJSON<Performance>("/api/performance"),
   importGameLines: (sport: string, paste: string) =>
     getJSON<{ ok: boolean; imported: number }>("/api/games/lines/import", {
@@ -232,6 +237,23 @@ export interface AssembledBet {
   combined_decimal?: number;
   model_hit_prob?: number;
   recommended_stake?: number;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistantSlip {
+  mode: string;
+  board?: FloorPlay[];
+  bet?: AssembledBet;
+  games?: unknown[];
+}
+
+export interface AssistantResponse {
+  reply: string;
+  slip: AssistantSlip | null;
 }
 
 export interface FloorboardResponse {

@@ -201,6 +201,20 @@ def games(sport: str):
     return build_game_values(s, _BANKROLL["balance"])
 
 
+@router.post("/assistant", summary="Chat assistant (Claude + floor model tools)")
+def assistant(
+    messages: list[dict] = Body(...),
+    sport: str = Body(default="nba"),
+    board: str = Body(default=""),
+):
+    """Conversational front door: paste a board, ask in plain language, get a
+    reply + a structured slip for the result card."""
+    from app.assistant import run_assistant
+
+    s = _resolve_sport(sport)
+    return run_assistant(messages, s.value, board, bankroll=_BANKROLL["balance"])
+
+
 @router.post("/floorboard", summary="FanDuel board → floor board → chosen bet")
 def floorboard(
     sport: str = Body(...),
