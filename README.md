@@ -188,3 +188,5 @@ docker-compose.yml
 ---
 
 _Confidential — internal. Not betting advice; gamble responsibly._
+
+![Alt text] (images/logo.png)
